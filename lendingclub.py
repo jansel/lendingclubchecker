@@ -1,4 +1,9 @@
 #!/usr/bin/python
+"""lendingclub.py: API to access a lendingclub.com account from python"""
+__version__ = "1.0"
+__author__ = "Jason Ansel (jansel@csail.mit.edu)"
+__copyright__ = "(C) 2012. GNU GPL 3."
+
 import parsedatetime.parsedatetime as pdt
 import datetime
 import mechanize
