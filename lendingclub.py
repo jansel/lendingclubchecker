@@ -19,7 +19,8 @@ from settings import login_email,login_password
 from StringIO import StringIO
 import logging
 
-cachedir = './cache'
+cachedir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cache')
+
 notes_cache_path = cachedir+"/notes.csv"
 login_uri        = "https://www.lendingclub.com/account/summary.action"
 logout_uri       = 'https://www.lendingclub.com/account/logout.action'
