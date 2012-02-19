@@ -82,6 +82,10 @@ def main(args):
   else:
     logging.getLogger().setLevel(logging.INFO)
 
+  if args.weekday and datetime.date.today().weekday() in (5,6):
+    logging.info("aborting due to it not being a weekday")
+    return
+
   if args.frompickle:
     active = pickle.load(open(notes_pickle_file))
   else:
@@ -122,6 +126,7 @@ if __name__ == '__main__':
   parser.add_argument('--emailfrom', default=login_email, help='report email from address')
   parser.add_argument('--emailto',   default=login_email, help='report email to address')
   parser.add_argument('--email', action='store_true', help="send an email report to "+login_email)
+  parser.add_argument('--weekday', action='store_true', help="abort the script if run on the weekend")
   args = parser.parse_args()
   main(args)
 
