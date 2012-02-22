@@ -12,6 +12,7 @@ import re
 import pickle
 import csv
 import os
+import usfedhol
 from collections import defaultdict
 from pprint import pprint
 from BeautifulSoup import BeautifulSoup
@@ -36,13 +37,22 @@ def payment_prob(a, b):
   due_day is day of week (0=monday), delay is in days after due date, prob is from 0 to 1.0
   based on statistics for on time payments in my account
   '''
-  ppt = {0: [(0, 0.0025), (1, 0.0025), (3, 0.0049), (4, 0.9433), (7, 0.0468)],
-         1: [(0, 0.0032), (2, 0.0032), (6, 0.7333), (7, 0.2603)],
-         2: [(0, 0.0056), (6, 0.6983), (7, 0.2961)],
-         3: [(0, 0.0048), (1, 0.0024), (4, 0.0024), (6, 0.7584), (7, 0.2321)],
-         4: [(5, 0.005), (6, 0.8015), (7, 0.1935)],
-         5: [(2, 0.0053), (5, 0.8191), (6, 0.1755)],
-         6: [(3, 0.0023), (4, 0.7605), (5, 0.2372)]}
+  if not usfedhol.contains_holiday(a, b):
+    ppt = {0: [(4, 0.99)],
+           1: [(6, 0.99)],
+           2: [(6, 0.99)],
+           3: [(6, 0.99)],
+           4: [(6, 0.99)],
+           5: [(5, 0.99)],
+           6: [(4, 0.99)]}
+  else:
+    ppt = {0: [(4, 0.8077), (7, 0.1827)],
+           1: [(6, 0.0120), (7, 0.9880)],
+           2: [(6, 0.0275), (7, 0.9725)],
+           3: [(6, 0.1638), (7, 0.8362)],
+           4: [(6, 0.2143), (7, 0.7857)],
+           5: [(6, 0.99)],
+           6: [(5, 0.99)]}
   delta = (b-a).days
   return sum(map(lambda x: x[1],
                   filter(lambda x: x[0]<delta, ppt[a.weekday()])))
@@ -232,7 +242,8 @@ class Note:
 
   def paytime_stats(self, stats):
     for p in filter(PaymentHistoryItem.is_complete, self.payment_history):
-      stats[p.due.weekday()][(p.complete - p.due).days] += 1
+      if usfedhol.contains_holiday(p.due, p.complete):
+        stats[p.due.weekday()][(p.complete - p.due).days] += 1
 
 
 class CreditPoint:

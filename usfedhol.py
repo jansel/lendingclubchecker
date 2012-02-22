@@ -259,9 +259,12 @@ def fetch_holidays(years = range(2000, 2021)):
   return holidays
 
 def is_holiday(d):
+  assert dates[0] <= d and d <= dates[-1]
   return d in dates
 
 def contains_holiday(a, b):
+  assert dates[0] <= a and a <= dates[-1]
+  assert dates[0] <= b and b <= dates[-1]
   if a<=b:
     return 0<len(filter(lambda x: a<=x and x<=b, dates))
   else:
