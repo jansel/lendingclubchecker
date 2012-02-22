@@ -1,4 +1,8 @@
 #/usr/bin/python
+"""usfedhol.py: Test for United States federal holidays"""
+__version__ = "1.0"
+__author__ = "Jason Ansel (jansel@csail.mit.edu)"
+__copyright__ = "(C) 2012. GNU GPL 3."
 
 import datetime
 import urllib2
