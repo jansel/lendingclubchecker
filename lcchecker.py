@@ -77,7 +77,7 @@ def send_email(me, you, subject, body):
 def main(args):
   if args.debug:
     logging.getLogger().setLevel(logging.DEBUG)
-  elif args.quite:
+  elif args.quiet:
     logging.getLogger().setLevel(logging.WARNING)
   else:
     logging.getLogger().setLevel(logging.INFO)
@@ -91,7 +91,7 @@ def main(args):
   else:
     active = load_active_notes(args.update, args.window)
 
-  if not args.quite:
+  if not args.quiet:
     print
     print_want_sell(active)
   
@@ -121,7 +121,7 @@ if __name__ == '__main__':
                       help="print table of payment times based on due weekday, use with: -w 99 --noupdate -q")
   parser.add_argument('--debug', '-v', action='store_true',
                       help="print more debugging info")
-  parser.add_argument('--quite', '-q', action='store_true',
+  parser.add_argument('--quiet', '-q', action='store_true',
                       help="print less debugging info")
   parser.add_argument('--emailfrom', default=login_email, help='report email from address')
   parser.add_argument('--emailto',   default=login_email, help='report email to address')
