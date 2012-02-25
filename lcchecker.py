@@ -44,7 +44,7 @@ def load_active_notes(update, window):
 
   lc.logout()
 
-  pickle.dump(active, open(notes_pickle_file, 'w'))
+  pickle.dump(active, open(notes_pickle_file, 'wb'))
   return active
 
 def print_want_sell(active, o=sys.stdout):
@@ -87,7 +87,7 @@ def main(args):
     return
 
   if args.frompickle:
-    active = pickle.load(open(notes_pickle_file))
+    active = pickle.load(open(notes_pickle_file, 'rb'))
   else:
     active = load_active_notes(args.update, args.window)
 

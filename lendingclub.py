@@ -81,7 +81,7 @@ class LendingClubBrowser:
 
   def load_notes(self):
     self.notes = list()
-    for row in csv.DictReader(open(notes_cache_path)):
+    for row in csv.DictReader(open(notes_cache_path, 'rb')):
       self.notes.append(Note(row))
     return self.notes
   
@@ -92,20 +92,20 @@ class LendingClubBrowser:
   def fetch_notes(self):
     self.login()
     logging.info('fetching notes list')
-    open(notes_cache_path, 'w').write(self.br.open(notesrawcsv_uri).read())
+    open(notes_cache_path, 'wb').write(self.br.open(notesrawcsv_uri).read())
 
   def fetch_details(self, note):
     self.login()
     logging.info('fetching note details '+str(note.note_id))
-    open(note.cache_path(), 'w').write(self.br.open(note.details_uri()).read())
+    open(note.cache_path(), 'wb').write(self.br.open(note.details_uri()).read())
 
   def fetch_trading_summary(self):
     self.login()
     logging.info('fetching trading summary')
-    open(cachedir+'/tradingacc.html', 'w').write(self.br.open(tradingacc_uri).read())
+    open(cachedir+'/tradingacc.html', 'wb').write(self.br.open(tradingacc_uri).read())
 
   def get_already_selling_ids(self):
-    soup = BeautifulSoup(open(cachedir+'/tradingacc.html'))
+    soup = BeautifulSoup(open(cachedir+'/tradingacc.html', 'rb'))
     #soup.findAll('table', {'id' : 'purchased-orders'})
     selling = extract_table(soup.findAll('table', {'id' : 'loans-1'})[0])
     sold = extract_table(soup.findAll('table', {'id' : 'sold-orders'})[0])
@@ -151,7 +151,7 @@ class Note:
 
   def load_details(self):
     logging.debug("loading details for note "+str(self.note_id))
-    soup=BeautifulSoup(open(self.cache_path()).read())
+    soup=BeautifulSoup(open(self.cache_path(), 'rb').read())
     self.credit_history  = extract_credit_history(soup)
     self.collection_log  = extract_collection_log(soup)
     self.payment_history = extract_payment_history(soup)
