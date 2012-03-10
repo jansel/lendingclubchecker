@@ -134,7 +134,8 @@ class Note:
     self.order_id = int(row['OrderId'])
     self.portfolio = row['PortfolioName']
     self.status   = row['Status']
-    if row['NextPaymentDate'] != 'null':
+    self.principal = float(row['PrincipalRemaining'])
+    if row['NextPaymentDate'] != 'null' and self.principal > 0.0:
       self.next_payment = parsedate(row['NextPaymentDate'])
     else:
       self.next_payment = None
@@ -240,6 +241,12 @@ class Note:
       print >>o, "collection log (%d events)" % len(self.collection_log)
       print >>o, '> '+'\n> '.join(map(str, self.collection_log))
 
+  def payment_ammount(self):
+    try:
+      return self.payment_history[0].ammount()
+    except:
+      return 0.0
+
   def paytime_stats(self, stats):
     for p in filter(PaymentHistoryItem.is_complete, self.payment_history):
       if usfedhol.contains_holiday(p.due, p.complete):
@@ -275,6 +282,12 @@ class PaymentHistoryItem:
     self.complete = complete
     self.status = status
     self.ammounts = ammounts
+
+  def ammount(self):
+    try:
+      return float(self.ammounts[0])
+    except:
+      return 0.0
 
   def __repr__(self):
     return "PaymentHistoryItem(%s, %s, '%s', %s)" % (

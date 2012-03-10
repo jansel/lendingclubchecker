@@ -59,6 +59,21 @@ def print_want_sell(active, o=sys.stdout):
   if sell:
     print >>o, "sell note ids:", map(lambda x: x.note_id, sell)
 
+  print >>o
+  v1 = 0.0
+  for i in xrange(1,33):
+    s = filter(lambda x: x.want_update(i), active)
+    v2 = sum(map(lendingclub.Note.payment_ammount, s))
+    v = v2-v1
+    v1=v2
+    if v>0:
+      day = (datetime.date.today()+datetime.timedelta(days=i-1)).strftime("%a, %b %d")
+      print >>o, "expecting", v, "in payments", day
+    if len(s)==len(active):
+      break
+
+  print >>o
+
   return len(sell)
 
 def send_email(me, you, subject, body):
