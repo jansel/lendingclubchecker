@@ -70,7 +70,8 @@ class LendingClubBrowser:
       self.br.select_form(nr=0)
       self.br['login_email'] = login_email
       self.br['login_password'] = login_password
-      self.br.submit()
+      rsp = self.br.submit()
+      open(cachedir+'/summary.html', 'wb').write(rsp.read())
       self.logged_in = True
 
   def logout(self):
@@ -116,6 +117,21 @@ class LendingClubBrowser:
     self.load_notes()
     for note in self.notes:
       self.fetch_details(note)
+
+  def summary_plaintext(self):
+    s = open(cachedir+'/summary.html', 'rb').read()
+    s = re.sub('<[^>]+>', ' ', s)
+    s = re.sub('[ \r\n\t]+', ' ', s)
+    return s
+
+  def available_cash(self):
+    try:
+      m = re.search("Available Cash [$]?([0-9,.]+)", self.summary_plaintext())
+      return float(m.group(1).replace(',',''))
+    except:
+      logging.exception("failed to get available cash")
+      return -1
+
 
 class Note:
   def __init__(self, row):
@@ -247,6 +263,13 @@ class Note:
     except:
       return 0.0
 
+  def payment_interest(self):
+    try:
+      return self.payment_history[1].interest()
+    except:
+      logging.debug("unknown interest amount")
+      return 0.0
+
   def paytime_stats(self, stats):
     for p in filter(PaymentHistoryItem.is_complete, self.payment_history):
       if usfedhol.contains_holiday(p.due, p.complete):
@@ -286,6 +309,12 @@ class PaymentHistoryItem:
   def ammount(self):
     try:
       return float(self.ammounts[0])
+    except:
+      return 0.0
+  
+  def interest(self):
+    try:
+      return float(self.ammounts[2])
     except:
       return 0.0
 

@@ -61,14 +61,19 @@ def print_want_sell(active, o=sys.stdout):
 
   print >>o
   v1 = 0.0
-  for i in xrange(1,33):
-    s = filter(lambda x: x.want_update(i), active)
+  i1 = 0.0
+  print >>o, "available cash %.2f" % lendingclub.LendingClubBrowser().available_cash()
+  for days in xrange(1,33):
+    s = filter(lambda x: x.want_update(days), active)
     v2 = sum(map(lendingclub.Note.payment_ammount, s))
+    i2 = sum(map(lendingclub.Note.payment_interest, s))
     v = v2-v1
+    iv = i2-i1
     v1=v2
+    i1=i2
     if v>0:
-      day = (datetime.date.today()+datetime.timedelta(days=i-1)).strftime("%a, %b %d")
-      print >>o, "expecting", v, "in payments", day
+      day = (datetime.date.today()+datetime.timedelta(days=days-1)).strftime("%a, %b %d")
+      print >>o, "expecting %5.2f (%5.2f interest) on" % (v,iv), day
     if len(s)==len(active):
       break
 
