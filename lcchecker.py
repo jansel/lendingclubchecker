@@ -131,9 +131,9 @@ def main(args):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='check notes coming due soon for ones that should be sold')
-  parser.add_argument('--window', '-w', default=4, type=int,
+  parser.add_argument('--window', '-w', default=5, type=int,
                       help='fetch notes we expect to be payed in the next N days')
-  parser.add_argument('--noupdate', action='store_false', dest='update',
+  parser.add_argument('--noupdate', '-n', action='store_false', dest='update',
                       help="dont fetch details for notes we have cached data for")
   parser.add_argument('--frompickle', action='store_true',
                       help="read active notes from "+notes_pickle_file)
