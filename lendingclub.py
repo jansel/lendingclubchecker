@@ -7,9 +7,9 @@ __copyright__ = "(C) 2012. GNU GPL 3."
 import parsedatetime.parsedatetime as pdt
 import datetime
 import mechanize
+import ClientForm
 import sys
 import re
-import pickle
 import csv
 import os
 import usfedhol
@@ -132,6 +132,34 @@ class LendingClubBrowser:
       logging.exception("failed to get available cash")
       return -1
 
+  def sell_notes(self, notes, markup):
+    if len(notes)==0:
+      return
+    self.login()
+    logging.info("selling %d notes"%len(notes))
+    self.br.open("https://www.lendingclub.com/foliofn/loans.action")
+
+    req = StringIO()
+    print >>req, '<form method="POST" action="https://www.lendingclub.com/foliofn/selectLoansForSale.action">'
+    for note in notes:
+       print >>req, '<input type="text" name="loan_id"  value="%d">' % note.loan_id
+       print >>req, '<input type="text" name="order_id" value="%d">' % note.order_id
+    print >>req, '</form>'
+
+    self.br.form = ClientForm.ParseFile(StringIO(req.getvalue()),
+                                        "https://www.lendingclub.com/foliofn/loans.action")[0]
+    self.br.submit()
+
+    self.br.select_form(name='submitLoansForSale')
+    for i in xrange(len(notes)):
+      for note in notes:
+        if note.loan_id==int(self.br.form.find_control('loan_id', nr=i).value) \
+            and note.order_id==int(self.br.form.find_control('order_id', nr=i).value):
+          self.br.form.find_control('asking_price', nr=i).value = "%.2f" % (note.par_value()*markup)
+      assert float(self.br.form.find_control('asking_price', nr=i).value)>0.0
+    return self.br.submit()
+
+
 
 class Note:
   def __init__(self, row):
@@ -150,7 +178,8 @@ class Note:
     self.order_id = int(row['OrderId'])
     self.portfolio = row['PortfolioName']
     self.status   = row['Status']
-    self.principal = float(row['PrincipalRemaining'])
+    self.accrual = float(row['Accrual'].replace('$',''))
+    self.principal = float(row['PrincipalRemaining'].replace('$',''))
     if row['NextPaymentDate'] != 'null' and self.principal > 0.0:
       self.next_payment = parsedate(row['NextPaymentDate'])
     else:
@@ -158,6 +187,9 @@ class Note:
     self.credit_history = None
     self.collection_log = None
     self.payment_history = None
+
+  def par_value(self):
+    return self.principal+self.accrual
 
   def details_uri(self):
     return 'https://www.lendingclub.com/account/loanPerf.action?loan_id=%d&order_id=%d&note_id=%d' % (

@@ -7,7 +7,6 @@ __copyright__ = "(C) 2012. GNU GPL 3."
 import lendingclub
 import argparse
 import logging
-import pickle
 import smtplib
 import datetime
 import sys 
@@ -15,10 +14,14 @@ from StringIO import StringIO
 from email.mime.text import MIMEText
 from settings import smtp_server, smtp_username, smtp_password, login_email
 
+try:
+  import cPickle as pickle
+except:
+  import pickle
+
 notes_pickle_file = lendingclub.cachedir+'/notes.pk'
 
-def load_active_notes(update, window):
-  lc = lendingclub.LendingClubBrowser()
+def load_active_notes(lc, update, window):
   if update:
     lc.fetch_notes()
     lc.fetch_trading_summary()
@@ -42,14 +45,12 @@ def load_active_notes(update, window):
       else:
         logging.exception("failed to load note "+str(note.id)) 
 
-  lc.logout()
 
-  pickle.dump(active, open(notes_pickle_file, 'wb'))
+  pickle.dump(active, open(notes_pickle_file, 'wb'), pickle.HIGHEST_PROTOCOL)
   return active
 
-def print_want_sell(active, o=sys.stdout):
-  sell = filter(lendingclub.Note.want_sell, active)
-
+def create_msg(sell, active, args):
+  o = StringIO()
   print >>o, "examined", len(active), 'notes,', len(sell), "sell suggestions:"
   print >>o
   for note in sell:
@@ -57,7 +58,11 @@ def print_want_sell(active, o=sys.stdout):
     print >>o, 'sell reasons', note.sell_reasons()
     print >>o
   if sell:
-    print >>o, "sell note ids:", map(lambda x: x.note_id, sell)
+    if args.sell:
+      print >>o, "will automatically sell note ids:",
+    else:
+      print >>o, "suggested sell note ids:",
+    print >>o,  map(lambda x: x.note_id, sell)
 
   print >>o
   v1 = 0.0
@@ -79,7 +84,7 @@ def print_want_sell(active, o=sys.stdout):
 
   print >>o
 
-  return len(sell)
+  return o.getvalue()
 
 def send_email(me, you, subject, body):
   logging.info("sending email '%s' to %s" % (subject, you))
@@ -106,28 +111,36 @@ def main(args):
     logging.info("aborting due to it not being a weekday")
     return
 
+  lc = lendingclub.LendingClubBrowser()
+
   if args.frompickle:
     active = pickle.load(open(notes_pickle_file, 'rb'))
   else:
-    active = load_active_notes(args.update, args.window)
+    active = load_active_notes(lc, args.update, args.window)
+
+  sell = filter(lendingclub.Note.want_sell, active)
+  body = create_msg(sell, active, args)
 
   if not args.quiet:
     print
-    print_want_sell(active)
+    print body
   
   if args.email:
-    body = StringIO()
-    nsell = print_want_sell(active, body)
     today = str(datetime.date.today())
-    subject = "[LendingClubChecker] %d sell suggestions for %s" % (nsell, today)
-    send_email(args.emailfrom, args.emailto, subject, body.getvalue())
-
+    subject = "[LendingClubChecker] %d sell suggestions for %s" % (len(sell), today)
+    send_email(args.emailfrom, args.emailto, subject, body)
+  
+  if len(sell)>0 and args.sell:
+    lc.sell_notes(sell, args.markup)
+    
   if args.probtable:
     print
     print "payment prob table"
     print "ppt[due_day] = [(delay, prob), ...]"
     print "due_day is day of week (0=monday), delay is in days after due date, prob is from 0 to 1.0"
     lendingclub.build_payment_prob_table(active)
+
+  lc.logout()
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='check notes coming due soon for ones that should be sold')
@@ -147,7 +160,11 @@ if __name__ == '__main__':
   parser.add_argument('--emailto',   default=login_email, help='report email to address')
   parser.add_argument('--email', action='store_true', help="send an email report to "+login_email)
   parser.add_argument('--weekday', action='store_true', help="abort the script if run on the weekend")
+  parser.add_argument('--sell', action='store_true', help="automatically sell all suggestions")
+  parser.add_argument('--markup', default=0.993, type=float, help='markup for --sell (default 0.993)')
   args = parser.parse_args()
+  assert args.markup>0.4
+  assert args.markup<1.6
   main(args)
 
 
