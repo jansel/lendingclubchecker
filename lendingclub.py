@@ -30,6 +30,8 @@ logout_uri       = 'https://www.lendingclub.com/account/logout.action'
 notesrawcsv_uri  = 'https://www.lendingclub.com/account/notesRawData.action'
 tradingacc_uri   = 'https://www.lendingclub.com/foliofn/tradingAccount.action'
 
+nobuy_reason_log = defaultdict(int)
+
 if not os.path.isdir(cachedir):
   os.mkdir(cachedir)
 
@@ -168,9 +170,9 @@ class LendingClubBrowser:
 
 
   def fetch_trading_inventory(self,
-                              from_rate          = 0.16,
+                              remaining_payments = None,
+                              from_rate          = None,
                               to_rate            = None,
-                              remaining_payments = 59,
                               status             = ['status_always_current'],
                               startindex         = 0,
                               pagesize           = 60):
@@ -257,7 +259,7 @@ class Note:
       else:
         self.next_payment = None
       self.days_since_payment = None
-      self.payments_recieved = None
+      self.payments_received = None
     else:
       assert json is not None
       self.note_id      = int(json['noteId'])
@@ -276,7 +278,7 @@ class Note:
         self.days_since_payment = int(json['days_since_payment'])
       except:
         self.days_since_payment = None
-      self.payments_recieved = int(json['loanClass'])-int(json['remaining_pay'])
+      self.payments_received = int(json['loanClass'])-int(json['remaining_pay'])
 
     self.credit_history = None
     self.collection_log = None
@@ -297,7 +299,6 @@ class Note:
     return '%s/%d.html' % (cachedir, self.note_id)
 
   def load_details(self):
-    logging.debug("loading details for note "+str(self.note_id))
     soup=BeautifulSoup(open(self.cache_path(), 'rb').read())
     self.credit_history  = extract_credit_history(soup)
     self.collection_log  = extract_collection_log(soup)
@@ -374,37 +375,51 @@ class Note:
 
 
   def want_buy_no_details(self,
-                          days_since_payment=21,
-                          markup=1.0,
-                          payments_recieved=6,
-                          from_rate=0.17,
-                          price=25.0,
+                          days_since_payment,
+                          from_rate,
+                          price,
+                          markup,
+                          payments_received,
                           creditdelta=None,
+                          reasonlog=nobuy_reason_log,
                           ):
     if self.mine:
+      reasonlog['mine']+=1
       return False
     if self.status != 'Current':
+      reasonlog['not current']+=1
       return False
     if not self.days_since_payment or self.days_since_payment>days_since_payment:
+      reasonlog['payment soon']+=1
       return False
     if not self.asking_price or self.markup()>markup:
+      reasonlog['markup too high']+=1
       return False
-    if not self.payments_recieved or self.payments_recieved<payments_recieved:
+    if not self.payments_received or self.payments_received<payments_received:
+      reasonlog['too new']+=1
       return False
     if not self.rate or self.rate<100.0*from_rate:
+      reasonlog['rate too low']+=1
       return False
     if self.asking_price>price:
+      reasonlog['price too high']+=1
       return False
     return True
 
-  def want_buy(self, creditdelta=-10, **kwargs):
-    if not self.want_buy_no_details(**kwargs):
+  def want_buy(self, creditdelta, reasonlog=nobuy_reason_log, **kwargs):
+    if not self.want_buy_no_details(reasonlog=reasonlog, **kwargs):
       return False
     if self.next_payment is None:
+      reasonlog['no details']+=1
       return False
     if self.creditdeltamin()<creditdelta:
+      reasonlog['credit score']+=1
       return False
-    return not self.want_sell()
+    if self.want_sell():
+      reasonlog[self.sell_reasons()[0]]+=1
+      return False
+    return True
+
 
   def markup(self):
     try:
