@@ -10,6 +10,9 @@ import logging
 import smtplib
 import datetime
 import sys 
+import time
+import os
+import re
 from StringIO import StringIO
 from email.mime.text import MIMEText
 from settings import smtp_server, smtp_username, smtp_password, login_email
@@ -31,7 +34,7 @@ def load_active_notes(lc, update, window):
   active = filter(lambda x: x.note_id not in sellingids, active)
   active = filter(lambda x: x.want_update(window), active)
 
-  logging.info("active notes = "+str(len(active)))
+  logging.debug("active notes = "+str(len(active)))
 
   for note in active:
     if update:
@@ -49,8 +52,7 @@ def load_active_notes(lc, update, window):
   pickle.dump(active, open(notes_pickle_file, 'wb'), pickle.HIGHEST_PROTOCOL)
   return active
 
-def create_msg(sell, active, args):
-  o = StringIO()
+def create_msg(lc, sell, active, args, o):
   print >>o, "examined", len(active), 'notes,', len(sell), "sell suggestions:"
   print >>o
   for note in sell:
@@ -67,7 +69,7 @@ def create_msg(sell, active, args):
   print >>o
   v1 = 0.0
   i1 = 0.0
-  print >>o, "available cash %.2f" % lendingclub.LendingClubBrowser().available_cash()
+  print >>o, "available cash %.2f" % lc.available_cash()
   for days in xrange(1,33):
     s = filter(lambda x: x.want_update(days), active)
     v2 = sum(map(lendingclub.Note.payment_ammount, s))
@@ -84,8 +86,6 @@ def create_msg(sell, active, args):
 
   print >>o
 
-  return o.getvalue()
-
 def send_email(me, you, subject, body):
   logging.info("sending email '%s' to %s" % (subject, you))
   msg = MIMEText(body)
@@ -99,48 +99,117 @@ def send_email(me, you, subject, body):
   s.sendmail(me, [you], msg.as_string())
   s.quit()
 
+def get_buy_suggestions(lc, args, o):
+  if args.update:
+    lc.fetch_trading_inventory()
+  all_loan_ids = set(lc.get_all_loan_ids())
+  inv = lc.load_trading_inventory()
+  inv = filter(lendingclub.Note.want_buy_no_details, inv)
+  buy = list()
+  #cash = lc.available_cash()
+  cash = 100
+  nfetched = 0
+  for note in inv:
+    try:
+      if note.loan_id in all_loan_ids:
+        continue
+      if note.asking_price > cash:
+        continue
+      if args.update:
+        lc.fetch_details(note)
+      nfetched += 1
+      note.load_details()
+      if note.want_buy():
+        buy.append(note)
+        all_loan_ids.add(note.loan_id)
+        cash -= note.asking_price
+    except:
+      logging.exception("failed to load trading note")
+
+  print >>o
+  print >>o, "examined",nfetched,"of",len(inv),"trading notes,", len(buy),"buy suggestions:"
+  print >>o
+  for note in buy:
+    note.debug(o)
+    print >>o
+
+  if buy:
+    if args.buy:
+      print >>o,"will automatically buy ids:",map(lambda x: x.note_id, buy)
+    else:
+      print >>o,"suggested buy ids:",map(lambda x: x.note_id, buy)
+
+  return buy
+
 def main(args):
+  o = StringIO()
+  logstream = StringIO()
   if args.debug:
-    logging.getLogger().setLevel(logging.DEBUG)
+    loglevel = logging.DEBUG
   elif args.quiet:
-    logging.getLogger().setLevel(logging.WARNING)
+    loglevel = logging.WARNING
   else:
-    logging.getLogger().setLevel(logging.INFO)
+    loglevel = logging.INFO
+  logging.basicConfig(level=loglevel, stream=logstream)
 
-  if args.weekday and datetime.date.today().weekday() in (5,6):
-    logging.info("aborting due to it not being a weekday")
-    return
+  try:
 
-  lc = lendingclub.LendingClubBrowser()
+    if args.weekday and datetime.date.today().weekday() in (5,6):
+      logging.info("aborting due to it not being a weekday")
+      return
 
-  if args.frompickle:
-    active = pickle.load(open(notes_pickle_file, 'rb'))
-  else:
-    active = load_active_notes(lc, args.update, args.window)
+    lc = lendingclub.LendingClubBrowser()
 
-  sell = filter(lendingclub.Note.want_sell, active)
-  body = create_msg(sell, active, args)
+    if args.frompickle:
+      active = pickle.load(open(notes_pickle_file, 'rb'))
+    else:
+      active = load_active_notes(lc, args.update, args.window)
 
-  if not args.quiet:
-    print
-    print body
-  
-  if args.email:
-    today = str(datetime.date.today())
-    subject = "[LendingClubChecker] %d sell suggestions for %s" % (len(sell), today)
-    send_email(args.emailfrom, args.emailto, subject, body)
-  
-  if len(sell)>0 and args.sell:
-    lc.sell_notes(sell, args.markup)
+    sell = filter(lendingclub.Note.want_sell, active)
+
+    if len(sell)>0 and args.sell:
+      lc.sell_notes(sell, args.markup)
+
+    create_msg(lc, sell, active, args, o)
+
+    buy = get_buy_suggestions(lc, args, o)
+
+    if len(buy)>0 and args.buy:
+      lc.buy_trading_notes(buy)
+
+    lc.logout()
+
+    #clean cache dir:
+    for fname in os.listdir(lendingclub.cachedir):
+      if re.search("[.]html", fname):
+        fpath = os.path.join(lendingclub.cachedir, fname)
+        st = os.stat(fpath)
+        daysold = (time.time()-max(st.st_atime, st.st_mtime))/3600/24
+        if daysold>45:
+          logging.info("deleting %s, %.0f days old"%(fname,daysold))
+          os.unlink(fpath)
+
+  except:
+    logging.exception("unknown error")
+  finally:
+    body = o.getvalue()
+    log = logstream.getvalue()
+    if log:
+      body+="\n\nlog:\n"+log
+
+    if not args.quiet:
+      print
+      print body
+    elif log:
+      print
+      print "log:"
+      print log
+
+    if body and args.email:
+      today = str(datetime.date.today())
+      subject = "[LendingClubChecker] sell %d, buy %d on %s" % (len(sell), len(buy), today)
+      send_email(args.emailfrom, args.emailto, subject, body)
     
-  if args.probtable:
-    print
-    print "payment prob table"
-    print "ppt[due_day] = [(delay, prob), ...]"
-    print "due_day is day of week (0=monday), delay is in days after due date, prob is from 0 to 1.0"
-    lendingclub.build_payment_prob_table(active)
-
-  lc.logout()
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='check notes coming due soon for ones that should be sold')
@@ -149,9 +218,7 @@ if __name__ == '__main__':
   parser.add_argument('--noupdate', '-n', action='store_false', dest='update',
                       help="dont fetch details for notes we have cached data for")
   parser.add_argument('--frompickle', action='store_true',
-                      help="read active notes from "+notes_pickle_file)
-  parser.add_argument('--probtable', action='store_true',
-                      help="print table of payment times based on due weekday, use with: -w 99 --noupdate -q")
+                      help="read active notes from last run cache")
   parser.add_argument('--debug', '-v', action='store_true',
                       help="print more debugging info")
   parser.add_argument('--quiet', '-q', action='store_true',
@@ -161,6 +228,7 @@ if __name__ == '__main__':
   parser.add_argument('--email', action='store_true', help="send an email report to "+login_email)
   parser.add_argument('--weekday', action='store_true', help="abort the script if run on the weekend")
   parser.add_argument('--sell', action='store_true', help="automatically sell all suggestions")
+  parser.add_argument('--buy', action='store_true', help="automatically buy all suggestions")
   parser.add_argument('--markup', default=0.993, type=float, help='markup for --sell (default 0.993)')
   args = parser.parse_args()
   assert args.markup>0.4

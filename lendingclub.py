@@ -10,9 +10,11 @@ import mechanize
 import ClientForm
 import sys
 import re
+import json
 import csv
 import os
 import usfedhol
+import random
 from collections import defaultdict
 from pprint import pprint
 from BeautifulSoup import BeautifulSoup
@@ -112,6 +114,9 @@ class LendingClubBrowser:
     sold = extract_table(soup.findAll('table', {'id' : 'sold-orders'})[0])
     return set(map(lambda x: int(x['Note ID']), selling+sold))
 
+  def get_all_loan_ids(self):
+    return map(lambda x: x.loan_id, self.notes)
+
   def scrape_all_details(self):
     self.fetch_notes()
     self.load_notes()
@@ -148,7 +153,8 @@ class LendingClubBrowser:
 
     self.br.form = ClientForm.ParseFile(StringIO(req.getvalue()),
                                         "https://www.lendingclub.com/foliofn/loans.action")[0]
-    self.br.submit()
+    rs = self.br.submit()
+    open(cachedir+'/sell1.html', 'wb').write(rs.read())
 
     self.br.select_form(name='submitLoansForSale')
     for i in xrange(len(notes)):
@@ -157,33 +163,121 @@ class LendingClubBrowser:
             and note.order_id==int(self.br.form.find_control('order_id', nr=i).value):
           self.br.form.find_control('asking_price', nr=i).value = "%.2f" % (note.par_value()*markup)
       assert float(self.br.form.find_control('asking_price', nr=i).value)>0.0
-    return self.br.submit()
+    rs = self.br.submit()
+    open(cachedir+'/sell2.html', 'wb').write(rs.read())
 
 
+  def fetch_trading_inventory(self,
+                              from_rate          = 0.16,
+                              to_rate            = None,
+                              remaining_payments = 59,
+                              status             = ['status_always_current'],
+                              startindex         = 0,
+                              pagesize           = 60):
+    self.login()
+    logging.info("fetching trading inventory")
+    self.br.open("https://www.lendingclub.com/foliofn/tradingInventory.action")
+    self.br.select_form(nr=0)
+    if from_rate is not None:
+      self.br.form['search_from_rate'] = [str(from_rate)]
+    if to_rate is not None:
+      self.br.form['search_to_rate'] = [str(to_rate)]
+    if status is not None:
+      self.br.form['search_status'] = status
+    if remaining_payments is not None:
+      self.br.form['search_remaining_payments'] = [str(remaining_payments)]
+    self.br.submit()
+    rs = self.br.open('https://www.lendingclub.com/foliofn/browseNotesAj.action?'+
+                      '&sortBy=markup_discount&dir=asc&startindex=%d&newrdnnum=%d&pagesize=%d'
+                      % (startindex, random.randint(0,99999999), pagesize))
+    open(cachedir+'/trading_inventory.json', 'wb').write(rs.read())
+
+  def load_trading_inventory(self):
+    ti = json.load(open(cachedir+'/trading_inventory.json', 'rb'))
+    assert ti['result']=='success'
+    rv = list()
+    for note in ti['searchresult']['loans']:
+      try:
+        rv.append(Note(json=note))
+      except:
+        logging.exception('failed to add trading note')
+    rv.sort(key=Note.markup)
+    return rv
+
+  def buy_trading_notes(self, notes):
+    if len(notes)==0:
+      return
+    self.login()
+    logging.info("buying %d notes"%len(notes))
+    self.br.open("https://www.lendingclub.com/foliofn/tradingInventory.action")
+    for si,note in enumerate(notes):
+      self.br.open("https://www.lendingclub.com/foliofn/noteAj.action?" +
+                   "s=true&si=%d&ps=1&ni=%d&rnd=%d" %
+                   (si, note.note_id, random.randint(0,2**31)))
+    self.br.open_novisit("https://www.lendingclub.com/foliofn/tradingInventory.action")
+    rs = self.br.open("https://www.lendingclub.com/foliofn/completeLoanPurchase.action")
+    open(cachedir+'/buy1.html', 'wb').write(rs.read())
+    self.br.select_form(nr=0)
+    rs = self.br.submit()
+    open(cachedir+'/buy2.html', 'wb').write(rs.read())
 
 class Note:
-  def __init__(self, row):
+  def __init__(self, row=None, json=None):
     '''
-    {'Accrual': '$0.00', 'AmountLent': '25.0', 'InterestRate': '0.1825',
+    row = {'Accrual': '$0.00', 'AmountLent': '25.0', 'InterestRate': '0.1825',
      'LoanClass.name': 'D5', 'LoanId': '1130859', 'LoanMaturity.Maturity':
      '60', 'LoanType.Label': 'Personal', 'NextPaymentDate': 'null',
      'NoteId': '8580333', 'NoteType': '1', 'OrderId': '2283384',
      'PaymentsReceivedToDate': '0.0', 'PortfolioId': '491211', 'PortfolioName':
      'New', 'PrincipalRemaining': '25.0', 'Status': 'In Review', 'Trend':
      'FLAT'}
+     json = {"accrued_interest": 0.32, "asking_price": 22.01, "checkboxes": false,
+      "credit_score_trend": 0, "days_since_payment": 30, "loanClass": 60,
+      "loanGUID": 684868, "loanGrade": "D", "loanRate": "16.02", "loan_status":
+      "Current", "markup_discount": "0.84", "noteId": 3918723, "orderId":
+      1318992, "outstanding_principal": "21.50", "remaining_pay": 48,
+      "selfNote": 0, "title": "2011 debt consolidation", "ytm": "14.72"}
     '''
-    self.row      = row
-    self.note_id  = int(row['NoteId'])
-    self.loan_id  = int(row['LoanId'])
-    self.order_id = int(row['OrderId'])
-    self.portfolio = row['PortfolioName']
-    self.status   = row['Status']
-    self.accrual = float(row['Accrual'].replace('$',''))
-    self.principal = float(row['PrincipalRemaining'].replace('$',''))
-    if row['NextPaymentDate'] != 'null' and self.principal > 0.0:
-      self.next_payment = parsedate(row['NextPaymentDate'])
+    if row is not None:
+      assert json is None
+      self.note_id      = int(row['NoteId'])
+      self.loan_id      = int(row['LoanId'])
+      self.order_id     = int(row['OrderId'])
+      self.portfolio    = row['PortfolioName']
+      self.status       = row['Status']
+      self.accrual      = float(row['Accrual'].replace('$',''))
+      self.principal    = float(row['PrincipalRemaining'].replace('$',''))
+      self.rate         = float(row['InterestRate'])
+      self.term         = int(row['LoanMaturity.Maturity'])
+      self.mine         = True
+      self.last_payment = None
+      self.asking_price = None
+      if row['NextPaymentDate'] != 'null' and self.principal > 0.0:
+        self.next_payment = parsedate(row['NextPaymentDate'])
+      else:
+        self.next_payment = None
+      self.days_since_payment = None
+      self.payments_recieved = None
     else:
+      assert json is not None
+      self.note_id      = int(json['noteId'])
+      self.loan_id      = int(json['loanGUID'])
+      self.order_id     = int(json['orderId'])
+      self.portfolio    = None
+      self.status       = json['loan_status']
+      self.accrual      = float(json['accrued_interest'])
+      self.principal    = float(json['outstanding_principal'])
+      self.asking_price = float(json['asking_price'])
+      self.rate         = float(json['ytm'])
+      self.term         = int(json['loanClass'])
+      self.mine         = bool(json['selfNote'])
       self.next_payment = None
+      try:
+        self.days_since_payment = int(json['days_since_payment'])
+      except:
+        self.days_since_payment = None
+      self.payments_recieved = int(json['loanClass'])-int(json['remaining_pay'])
+
     self.credit_history = None
     self.collection_log = None
     self.payment_history = None
@@ -192,8 +286,12 @@ class Note:
     return self.principal+self.accrual
 
   def details_uri(self):
-    return 'https://www.lendingclub.com/account/loanPerf.action?loan_id=%d&order_id=%d&note_id=%d' % (
-        self.loan_id, self.order_id, self.note_id )
+    if self.mine:
+      return 'https://www.lendingclub.com/account/loanPerf.action?loan_id=%d&order_id=%d&note_id=%d' % (
+          self.loan_id, self.order_id, self.note_id )
+    else:
+      return 'https://www.lendingclub.com/foliofn/loanPerf.action?loan_id=%d&order_id=%d&note_id=%d' % (
+          self.loan_id, self.order_id, self.note_id )
   
   def cache_path(self):
     return '%s/%d.html' % (cachedir, self.note_id)
@@ -204,6 +302,9 @@ class Note:
     self.credit_history  = extract_credit_history(soup)
     self.collection_log  = extract_collection_log(soup)
     self.payment_history = extract_payment_history(soup)
+    if self.next_payment is None and self.payment_history:
+      if self.payment_history[0].status in ('Scheduled', 'Processing...'):
+        self.next_payment = self.payment_history[0].due
 
   def sell_reasons(self):
     if self.status == 'Fully Paid':
@@ -271,6 +372,46 @@ class Note:
         and self.portfolio != 'Bad' \
         and payment_prob(self.next_payment, datetime.date.today()+datetime.timedelta(days=days)) > 0.5
 
+
+  def want_buy_no_details(self,
+                          days_since_payment=21,
+                          markup=1.0,
+                          payments_recieved=6,
+                          from_rate=0.17,
+                          price=25.0,
+                          creditdelta=None,
+                          ):
+    if self.mine:
+      return False
+    if self.status != 'Current':
+      return False
+    if not self.days_since_payment or self.days_since_payment>days_since_payment:
+      return False
+    if not self.asking_price or self.markup()>markup:
+      return False
+    if not self.payments_recieved or self.payments_recieved<payments_recieved:
+      return False
+    if not self.rate or self.rate<100.0*from_rate:
+      return False
+    if self.asking_price>price:
+      return False
+    return True
+
+  def want_buy(self, creditdelta=-10, **kwargs):
+    if not self.want_buy_no_details(**kwargs):
+      return False
+    if self.next_payment is None:
+      return False
+    if self.creditdeltamin()<creditdelta:
+      return False
+    return not self.want_sell()
+
+  def markup(self):
+    try:
+      return self.asking_price/self.par_value()
+    except:
+      return 99999999.0
+
   def creditdeltamin(self):
     if self.credit_history[-1].high < self.credit_history[0].high:
       return self.credit_history[-1].high - self.credit_history[0].low
@@ -279,7 +420,10 @@ class Note:
     return 0
 
   def debug(self, o=sys.stderr, histn=5):
-    print >>o, "note", self.note_id, self.portfolio, self.status
+    print >>o, "note", self.note_id, self.portfolio, self.status, self.par_value()
+    if self.asking_price:
+      print >>o, "asking price", self.asking_price, "(%.2f%%)"%(self.asking_price/self.par_value()*100.0),'rate',self.rate
+      print >>o, "days since payment", self.days_since_payment
     if self.credit_history:
       print >>o, "credit", str(self.credit_history[-1]), 'changed by at least', self.creditdeltamin()
     if self.payment_history:
@@ -293,14 +437,17 @@ class Note:
     try:
       return self.payment_history[0].ammount()
     except:
-      return 0.0
+      guess = self.principal*(self.rate/12.0)/(1-math.e**(-self.term*math.log(1+self.rate/12.0)))
+      logging.debug("unknown payment amount, guessing %.2f for note %d" % (guess, self.note_id))
+      return guess
 
   def payment_interest(self):
     try:
       return self.payment_history[1].interest()
     except:
-      logging.debug("unknown interest amount")
-      return 0.0
+      guess = self.principal*(self.rate/12.0)
+      logging.debug("unknown interest amount, guessing %.2f for note %d" % (guess, self.note_id))
+      return guess
 
   def paytime_stats(self, stats):
     for p in filter(PaymentHistoryItem.is_complete, self.payment_history):
