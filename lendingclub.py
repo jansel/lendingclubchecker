@@ -390,20 +390,20 @@ class Note:
     if self.status != 'Current':
       reasonlog['not current']+=1
       return False
+    if not self.asking_price or self.markup()>markup:
+      reasonlog['markup > %.4f' % markup]+=1
+      return False
+    if self.asking_price>price:
+      reasonlog['price > %.2f' % price]+=1
+      return False
+    if not self.rate or self.rate<100.0*from_rate:
+      reasonlog['rate < %.2f' % from_rate]+=1
+      return False
     if not self.days_since_payment or self.days_since_payment>days_since_payment:
       reasonlog['payment soon']+=1
       return False
-    if not self.asking_price or self.markup()>markup:
-      reasonlog['markup too high']+=1
-      return False
     if not self.payments_received or self.payments_received<payments_received:
       reasonlog['too new']+=1
-      return False
-    if not self.rate or self.rate<100.0*from_rate:
-      reasonlog['rate too low']+=1
-      return False
-    if self.asking_price>price:
-      reasonlog['price too high']+=1
       return False
     return True
 
@@ -412,6 +412,9 @@ class Note:
       return False
     if self.next_payment is None:
       reasonlog['no details']+=1
+      return False
+    if payment_prob(self.next_payment, datetime.date.today()+datetime.timedelta(days=5))>0.0:
+      reasonlog['expecting payment soon']+=1
       return False
     if self.creditdeltamin()<creditdelta:
       reasonlog['credit score']+=1

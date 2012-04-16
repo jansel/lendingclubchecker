@@ -29,13 +29,13 @@ except:
   import pickle
 
 buy_options = {
-  'days_since_payment' : 24,
+  'days_since_payment' : 28,
   'markup'             : 1.001,
   'payments_received'  : 4,
   'from_rate'          : 0.17,
   'price'              : 25.0,
   'creditdelta'        : -10,
-  }
+}
 
 notes_pickle_file = lendingclub.cachedir+'/notes.pk'
 
@@ -158,6 +158,7 @@ def get_buy_suggestions(lc, args, o):
   if buy:
     if args.buy:
       print >>o,"will automatically buy ids:",map(lambda x: x.note_id, buy)
+      print >>o,"cash left:", cash
     else:
       print >>o,"suggested buy ids:",map(lambda x: x.note_id, buy)
 
