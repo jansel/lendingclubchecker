@@ -49,6 +49,9 @@ def load_active_notes(lc, update, window):
   active = filter(lambda x: x.note_id not in sellingids, active)
   active = filter(lambda x: x.want_update(window), active)
 
+  if window == 0:
+    return list()
+
   logging.debug("active notes = "+str(len(active)))
 
   for note in active:
@@ -120,25 +123,29 @@ def get_buy_suggestions(lc, args, o):
                                remaining_payments=60-int(buy_options['payments_received']))
   all_loan_ids = set(lc.get_all_loan_ids())
   invall = lc.load_trading_inventory()
-  inv = filter(lambda x: x.want_buy_no_details(**buy_options), invall)
+  reasons = defaultdict(int)
+  inv = filter(lambda x: x.want_buy_no_details(reasonlog=reasons, **buy_options), invall)
   buy = list()
   cash = lc.available_cash()
   nfetched = 0
   for note in inv:
     try:
       if note.loan_id in all_loan_ids:
+        reasons['already invested in loan'] += 1
         continue
       if note.asking_price > cash:
+        reasons['not enough cash'] += 1
         continue
       if args.update:
         lc.fetch_details(note)
       nfetched += 1
       note.load_details()
-      if note.want_buy(**buy_options):
+      if note.want_buy(reasonlog=reasons, **buy_options):
         buy.append(note)
         all_loan_ids.add(note.loan_id)
         cash -= note.asking_price
     except:
+      reasons['error'] += 1
       logging.exception("failed to load trading note")
 
   print >>o
@@ -156,8 +163,8 @@ def get_buy_suggestions(lc, args, o):
 
 
   print >>o
-  print >>o,"nobuy_reason_log %d/%d:"%(len(invall)-len(inv),len(invall))
-  pprint(sorted(lendingclub.nobuy_reason_log.items(), key=lambda x: -x[1]),
+  print >>o,"nobuy_reason_log:"
+  pprint(sorted(reasons.items(), key=lambda x: -x[1]),
          stream=o, indent=2, width=100)
 
   return buy

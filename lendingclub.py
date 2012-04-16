@@ -101,7 +101,7 @@ class LendingClubBrowser:
 
   def fetch_details(self, note):
     self.login()
-    logging.info('fetching note details '+str(note.note_id))
+    logging.debug('fetching note details '+str(note.note_id))
     open(note.cache_path(), 'wb').write(self.br.open(note.details_uri()).read())
 
   def fetch_trading_summary(self):
@@ -213,10 +213,11 @@ class LendingClubBrowser:
     logging.info("buying %d notes"%len(notes))
     self.br.open("https://www.lendingclub.com/foliofn/tradingInventory.action")
     for si,note in enumerate(notes):
-      self.br.open("https://www.lendingclub.com/foliofn/noteAj.action?" +
-                   "s=true&si=%d&ps=1&ni=%d&rnd=%d" %
-                   (si, note.note_id, random.randint(0,2**31)))
-    self.br.open_novisit("https://www.lendingclub.com/foliofn/tradingInventory.action")
+      rs = self.br.open("https://www.lendingclub.com/foliofn/noteAj.action?" +
+                        "s=true&si=%d&ps=1&ni=%d&rnd=%d" %
+                        (si, note.note_id, random.randint(0,2**31)))
+      open(cachedir+'/buy0.html', 'wb').write(rs.read())
+
     rs = self.br.open("https://www.lendingclub.com/foliofn/completeLoanPurchase.action")
     open(cachedir+'/buy1.html', 'wb').write(rs.read())
     self.br.select_form(nr=0)
