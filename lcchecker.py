@@ -128,7 +128,7 @@ def trading_inventory_iterator(lc, args, should_continue):
                                  page=page)
     for note in lc.load_trading_inventory(page=page):
       yield note
-      if note.markup()>args.markup:
+      if note.markup()>buy_options['markup']:
         done = True
 
 def get_buy_suggestions(lc, args, o):
@@ -138,7 +138,7 @@ def get_buy_suggestions(lc, args, o):
   cash = lc.available_cash()
   ntotal = 0
   nfetched = 0
-  for note in trading_inventory_iterator(lc, args, lambda: cash>20 and nfetched<3*args.pages):
+  for note in trading_inventory_iterator(lc, args, lambda: cash>20):
     try:
       ntotal += 1
       if not note.want_buy_no_details(reasonlog=reasons, **buy_options):
