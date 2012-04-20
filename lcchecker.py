@@ -118,11 +118,19 @@ def send_email(me, you, subject, body):
   s.quit()
 
 def get_buy_suggestions(lc, args, o):
-  if args.update:
-    lc.fetch_trading_inventory(from_rate=float(buy_options['from_rate'])-0.01,
-                               remaining_payments=60-int(buy_options['payments_received']))
   all_loan_ids = set(lc.get_all_loan_ids())
-  invall = lc.load_trading_inventory()
+  invall = list()
+  for page in xrange(args.pages):
+    if invall and invall[-1].markup() > buy_options['markup']:
+      break
+    if args.update:
+      lc.fetch_trading_inventory(from_rate=float(buy_options['from_rate'])-0.01,
+                                 remaining_payments=60-int(buy_options['payments_received']),
+                                 page=page)
+    new = lc.load_trading_inventory(page=page)
+    if len(new)==0:
+      break
+    invall.extend(new)
   reasons = defaultdict(int)
   inv = filter(lambda x: x.want_buy_no_details(reasonlog=reasons, **buy_options), invall)
   buy = list()
@@ -149,7 +157,7 @@ def get_buy_suggestions(lc, args, o):
       logging.exception("failed to load trading note")
 
   print >>o
-  print >>o, "examined",nfetched,"of",len(inv),"trading notes,", len(buy),"buy suggestions:"
+  print >>o, "examined",nfetched,"of",len(inv),"filtered from",len(invall),"trading notes,", len(buy),"buy suggestions:"
   print >>o
   for note in buy:
     note.debug(o)
@@ -180,9 +188,10 @@ def main(args):
   else:
     loglevel = logging.INFO
   logging.basicConfig(level=loglevel, stream=logstream)
+  if not args.quiet:
+    logging.getLogger().addHandler(logging.StreamHandler())
 
   try:
-
     if args.weekday and datetime.date.today().weekday() in (5,6):
       logging.info("aborting due to it not being a weekday")
       return
@@ -201,10 +210,11 @@ def main(args):
 
     create_msg(lc, sell, active, args, o)
 
-    buy = get_buy_suggestions(lc, args, o)
+    if args.buy:
+      buy = get_buy_suggestions(lc, args, o)
 
-    if len(buy)>0 and args.buy:
-      lc.buy_trading_notes(buy)
+      if len(buy)>0 and args.buy:
+        lc.buy_trading_notes(buy)
 
     lc.logout()
 
@@ -236,7 +246,7 @@ def main(args):
 
     if body and args.email:
       today = str(datetime.date.today())
-      subject = "[LendingClubChecker] sell %d, buy %d on %s" % (len(sell), len(buy), today)
+      subject = "[LendingClubChecker] buy %d sell %d on %s" % (len(buy), len(sell), today)
       send_email(args.emailfrom, args.emailto, subject, body)
     
 
@@ -262,6 +272,7 @@ if __name__ == '__main__':
   parser.add_argument('--buy', action='store_true', help="automatically buy all suggestions")
   parser.add_argument('--buyopt', nargs=2, action='append', help="set option for buying notes")
   parser.add_argument('--buyoptlist', action='store_true', help="print buyopts and exit")
+  parser.add_argument('--pages', default=8, type=int, help='maximum number of trading note pages to examine')
   args = parser.parse_args()
   assert args.sellmarkup>0.4
   assert args.sellmarkup<1.6

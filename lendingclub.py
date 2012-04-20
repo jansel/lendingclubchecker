@@ -174,10 +174,11 @@ class LendingClubBrowser:
                               from_rate          = None,
                               to_rate            = None,
                               status             = ['status_always_current'],
-                              startindex         = 0,
-                              pagesize           = 60):
+                              page               = 0):
+    pagesize = 60
+    startindex = pagesize * page
     self.login()
-    logging.info("fetching trading inventory")
+    logging.info("fetching trading inventory page %d"%page)
     self.br.open("https://www.lendingclub.com/foliofn/tradingInventory.action")
     self.br.select_form(nr=0)
     if from_rate is not None:
@@ -192,10 +193,10 @@ class LendingClubBrowser:
     rs = self.br.open('https://www.lendingclub.com/foliofn/browseNotesAj.action?'+
                       '&sortBy=markup_discount&dir=asc&startindex=%d&newrdnnum=%d&pagesize=%d'
                       % (startindex, random.randint(0,99999999), pagesize))
-    open(cachedir+'/trading_inventory.json', 'wb').write(rs.read())
+    open(cachedir+'/trading_inventory_page_%d.json' % page, 'wb').write(rs.read())
 
-  def load_trading_inventory(self):
-    ti = json.load(open(cachedir+'/trading_inventory.json', 'rb'))
+  def load_trading_inventory(self, page = 0):
+    ti = json.load(open(cachedir+'/trading_inventory_page_%d.json' % page, 'rb'))
     assert ti['result']=='success'
     rv = list()
     for note in ti['searchresult']['loans']:
