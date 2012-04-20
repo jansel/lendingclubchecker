@@ -116,28 +116,33 @@ def send_email(me, you, subject, body):
     s.login(smtp_username, smtp_password)
   s.sendmail(me, [you], msg.as_string())
   s.quit()
-
-def get_buy_suggestions(lc, args, o):
-  all_loan_ids = set(lc.get_all_loan_ids())
-  invall = list()
+  
+def trading_inventory_iterator(lc, args, should_continue):
+  done = False
   for page in xrange(args.pages):
-    if invall and invall[-1].markup() > buy_options['markup']:
-      break
+    if done or not should_continue():
+      return
     if args.update:
       lc.fetch_trading_inventory(from_rate=float(buy_options['from_rate'])-0.01,
                                  remaining_payments=60-int(buy_options['payments_received']),
                                  page=page)
-    new = lc.load_trading_inventory(page=page)
-    if len(new)==0:
-      break
-    invall.extend(new)
+    for note in lc.load_trading_inventory(page=page):
+      yield note
+      if note.markup()>args.markup:
+        done = True
+
+def get_buy_suggestions(lc, args, o):
+  all_loan_ids = set(lc.get_all_loan_ids())
   reasons = defaultdict(int)
-  inv = filter(lambda x: x.want_buy_no_details(reasonlog=reasons, **buy_options), invall)
   buy = list()
   cash = lc.available_cash()
+  ntotal = 0
   nfetched = 0
-  for note in inv:
+  for note in trading_inventory_iterator(lc, args, lambda: cash>20 and nfetched<3*args.pages):
     try:
+      ntotal += 1
+      if not note.want_buy_no_details(reasonlog=reasons, **buy_options):
+        continue
       if note.loan_id in all_loan_ids:
         reasons['already invested in loan'] += 1
         continue
@@ -157,7 +162,7 @@ def get_buy_suggestions(lc, args, o):
       logging.exception("failed to load trading note")
 
   print >>o
-  print >>o, "examined",nfetched,"of",len(inv),"filtered from",len(invall),"trading notes,", len(buy),"buy suggestions:"
+  print >>o, "examined",nfetched,"of",ntotal,"trading notes,", len(buy),"buy suggestions:"
   print >>o
   for note in buy:
     note.debug(o)
