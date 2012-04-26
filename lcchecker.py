@@ -55,9 +55,9 @@ def load_active_notes(lc, update, window):
   logging.debug("active notes = "+str(len(active)))
 
   for note in active:
-    if update:
-      lc.fetch_details(note)
     try:
+      if update:
+        lc.fetch_details(note)
       note.load_details()
     except:
       if not update:
@@ -220,6 +220,8 @@ def main(args):
 
       if len(buy)>0 and args.buy:
         lc.buy_trading_notes(buy)
+    else:
+      buy = list()
 
     lc.logout()
 
@@ -230,7 +232,7 @@ def main(args):
         st = os.stat(fpath)
         daysold = (time.time()-max(st.st_atime, st.st_mtime))/3600/24
         if daysold>45:
-          logging.info("deleting %s, %.0f days old"%(fname,daysold))
+          logging.debug("deleting %s, %.0f days old"%(fname,daysold))
           os.unlink(fpath)
 
   except:
