@@ -7,7 +7,10 @@ __copyright__ = "(C) 2012. GNU GPL 3."
 import parsedatetime.parsedatetime as pdt
 import datetime
 import mechanize
-import ClientForm
+try:
+  from mechanize import ParseFile as ClientFormParseFile
+except:
+  from ClientForm import ParseFile as ClientFormParseFile
 import sys
 import re
 import json
@@ -153,7 +156,7 @@ class LendingClubBrowser:
        print >>req, '<input type="text" name="order_id" value="%d">' % note.order_id
     print >>req, '</form>'
 
-    self.br.form = ClientForm.ParseFile(StringIO(req.getvalue()),
+    self.br.form = ClientFormParseFile(StringIO(req.getvalue()),
                                         "https://www.lendingclub.com/foliofn/loans.action")[0]
     rs = self.br.submit()
     open(cachedir+'/sell1.html', 'wb').write(rs.read())
