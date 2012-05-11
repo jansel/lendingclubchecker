@@ -33,6 +33,7 @@ buy_options = {
   'markup'             : 1.001,
   'payments_received'  : 4,
   'from_rate'          : 0.17,
+  'to_rate'            : 0.26,
   'price'              : 25.0,
   'creditdelta'        : -10,
 }
@@ -123,7 +124,8 @@ def trading_inventory_iterator(lc, args, should_continue):
     if done or not should_continue():
       return
     if args.update:
-      lc.fetch_trading_inventory(from_rate=float(buy_options['from_rate'])-0.01,
+      lc.fetch_trading_inventory(from_rate=float(buy_options['from_rate']),
+                                 to_rate=float(buy_options['to_rate']),
                                  remaining_payments=60-int(buy_options['payments_received']),
                                  page=page)
     for note in lc.load_trading_inventory(page=page):

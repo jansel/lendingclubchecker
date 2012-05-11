@@ -382,6 +382,7 @@ class Note:
   def want_buy_no_details(self,
                           days_since_payment,
                           from_rate,
+                          to_rate,
                           price,
                           markup,
                           payments_received,
@@ -402,6 +403,9 @@ class Note:
       return False
     if not self.rate or self.rate<100.0*from_rate:
       reasonlog['rate < %.2f' % from_rate]+=1
+      return False
+    if not self.rate or self.rate>=100.0*to_rate:
+      reasonlog['rate >= %.2f' % to_rate]+=1
       return False
     if not self.days_since_payment or self.days_since_payment>days_since_payment:
       reasonlog['payment soon']+=1
