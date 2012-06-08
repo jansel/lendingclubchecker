@@ -32,6 +32,7 @@ login_uri        = "https://www.lendingclub.com/account/summary.action"
 logout_uri       = 'https://www.lendingclub.com/account/logout.action'
 notesrawcsv_uri  = 'https://www.lendingclub.com/account/notesRawData.action'
 tradingacc_uri   = 'https://www.lendingclub.com/foliofn/tradingAccount.action'
+withdraw_uri     = 'https://www.lendingclub.com/account/withdraw.action'
 
 nobuy_reason_log = defaultdict(int)
 
@@ -227,6 +228,17 @@ class LendingClubBrowser:
     self.br.select_form(nr=0)
     rs = self.br.submit()
     open(cachedir+'/buy2.html', 'wb').write(rs.read())
+
+  def transfer(self, amount):
+    self.login()
+    amount = str(amount)
+    logging.info('Withdrawing ' + amount)
+    self.br.open(withdraw_uri)
+    self.br.select_form(nr=0)
+    self.br['amount'] = amount
+    rsp = self.br.submit()
+    open(cachedir+'/transfersummary.html', 'wb').write(rsp.read())
+    
 
 class Note:
   def __init__(self, row=None, json=None):
