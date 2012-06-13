@@ -149,17 +149,25 @@ class LendingClubBrowser:
     self.login()
     logging.info("selling %d notes"%len(notes))
     self.br.open("https://www.lendingclub.com/foliofn/loans.action")
-
-    req = StringIO()
-    print >>req, '<form method="POST" action="https://www.lendingclub.com/foliofn/selectLoansForSale.action">'
-    for note in notes:
-       print >>req, '<input type="text" name="loan_id"  value="%d">' % note.loan_id
-       print >>req, '<input type="text" name="order_id" value="%d">' % note.order_id
-    print >>req, '</form>'
-
-    self.br.form = ClientFormParseFile(StringIO(req.getvalue()),
-                                        "https://www.lendingclub.com/foliofn/loans.action")[0]
+    self.br.form = make_form("https://www.lendingclub.com/foliofn/loans.action",
+                             "https://www.lendingclub.com/account/loansAj.action",
+                             {'namespace' : '/foliofn',
+                              'method' : 'search',
+                              'sortBy' : 'NoteStatus',
+                              'dir' : 'asc',
+                              'join_criteria' : 'all',
+                              'status_criteria' : 'All',
+                              'order_ids_criteria' : '0',
+                              'r' : random.randint(0,90000000) })
     rs = self.br.submit()
+    open(cachedir+'/sell_list.html', 'wb').write(rs.read())
+
+    for note in notes:
+      rs = self.br.open("https://www.lendingclub.com/account/updateLoanCheckBoxAj.action?note_id=%d&remove=false&namespace=/foliofn" % note.note_id)
+      open(cachedir+'/sell0.html', 'wb').write(rs.read())
+
+
+    rs = self.br.open("https://www.lendingclub.com/foliofn/selectLoansForSale.action")
     open(cachedir+'/sell1.html', 'wb').write(rs.read())
 
     self.br.select_form(name='submitLoansForSale')
@@ -589,6 +597,15 @@ def extract_credit_history(soup):
       if len(tds) == 2:
         rv.append(CreditPoint(*((parsedate(tds[1]),)+parsecredit(tds[0]))))
   return rv
+
+
+def make_form(src, dest, values):
+  req = StringIO()
+  print >>req, '<form method="POST" action="%s">' % dest
+  for k, v in values.items():
+    print >>req, '<input type="text" name="%s"   value="%s">' % (str(k), str(v))
+  print >>req, '</form>'
+  return ClientFormParseFile(StringIO(req.getvalue()), src)[0]
 
 def extract_collection_log(soup):
   rv=list()
