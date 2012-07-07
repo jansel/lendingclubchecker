@@ -346,8 +346,6 @@ class Note:
       credit40    = None# 'credit score drop >40 points'
       expected99  = 'expected a payment by now (>99%)'
       expected90  = 'expected a payment by now (>90%)'
-      expected75  = 'expected a payment by now (>75%)'
-      expected65  = 'expected a payment by now (>65%)'
     reasons = list()
 
     if len(self.collection_log)>0:
@@ -383,10 +381,6 @@ class Note:
         reasons.append(RT.expected99)
       elif p>.90:
         reasons.append(RT.expected90)
-      elif p>.75:
-        reasons.append(RT.expected75)
-      elif p>.65:
-        reasons.append(RT.expected65)
 
     return filter(lambda x: x is not None, reasons)
   
