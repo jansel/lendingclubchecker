@@ -71,6 +71,20 @@ def load_active_notes(lc, update, window):
   pickle.dump(active, open(notes_pickle_file, 'wb'), pickle.HIGHEST_PROTOCOL)
   return active
 
+def dedup_notes(lc, selling, args):
+  sellingids = set(lc.get_already_selling_ids()) | set(map(lambda x: x.note_id, selling))
+  active = lc.load_notes()
+  active = list(filter(lambda x: x.note_id not in sellingids, active))
+  active.sort(key=lambda x: x.loan_id)
+  dups = list()
+  last_id = None
+  for note in active:
+    if note.loan_id == last_id:
+      dups.append(note)
+    last_id = note.loan_id
+  logging.info("selling %d duplicate notes" % len(dups))
+  lc.sell_notes(dups, args.sellmarkup)
+
 def create_msg(lc, sell, active, args, o):
   print >>o, "examined", len(active), 'notes,', len(sell), "sell suggestions:"
   print >>o
@@ -211,9 +225,12 @@ def main(args):
       active = load_active_notes(lc, args.update, args.window)
 
     sell = filter(lendingclub.Note.want_sell, active)
-
+    
     if len(sell)>0 and args.sell:
       lc.sell_notes(sell, args.sellmarkup)
+    
+    if args.dedup:
+      dedup_notes(lc, sell, args)
 
     create_msg(lc, sell, active, args, o)
 
@@ -282,6 +299,7 @@ if __name__ == '__main__':
   parser.add_argument('--buyopt', nargs=2, action='append', help="set option for buying notes")
   parser.add_argument('--buyoptlist', action='store_true', help="print buyopts and exit")
   parser.add_argument('--pages', default=8, type=int, help='maximum number of trading note pages to examine')
+  parser.add_argument('--dedup', action='store_true', help="sell notes such that we hold only one note per loan")
   args = parser.parse_args()
   assert args.sellmarkup>0.4
   assert args.sellmarkup<1.6

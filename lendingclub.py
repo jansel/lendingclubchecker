@@ -172,11 +172,14 @@ class LendingClubBrowser:
 
     self.br.select_form(name='submitLoansForSale')
     for i in xrange(len(notes)):
-      for note in notes:
-        if note.loan_id==int(self.br.form.find_control('loan_id', nr=i).value) \
-            and note.order_id==int(self.br.form.find_control('order_id', nr=i).value):
-          self.br.form.find_control('asking_price', nr=i).value = "%.2f" % (note.par_value()*markup)
-      assert float(self.br.form.find_control('asking_price', nr=i).value)>0.0
+      try:
+        for note in notes:
+          if note.loan_id==int(self.br.form.find_control('loan_id', nr=i).value) \
+              and note.order_id==int(self.br.form.find_control('order_id', nr=i).value):
+            self.br.form.find_control('asking_price', nr=i).value = "%.2f" % (note.par_value()*markup)
+        assert float(self.br.form.find_control('asking_price', nr=i).value)>0.0
+      except Exception, e:
+        logging.exception("fewer selling notes than expected %d" % i)
     rs = self.br.submit()
     open(cachedir+'/sell2.html', 'wb').write(rs.read())
 
@@ -219,23 +222,77 @@ class LendingClubBrowser:
     rv.sort(key=Note.markup)
     return rv
 
+  def fetch_new_inventory(self):
+    self.login()
+    logging.info("fetching new inventory")
+    rs = self.br.open('https://www.lendingclub.com/browse/browseNotesRawDataV2.action')
+    open(cachedir+'/browseNotesRawDataV2.csv', 'wb').write(rs.read())
+
+  def load_new_inventory(self):
+    rows = list()
+    for row in csv.DictReader(open(cachedir+'/browseNotesRawDataV2.csv', 'rb')):
+      rows.append(row)
+    return rows
+
+  def buy_new_notes(self, loan_ids, ammount_per_note):
+    raise Exception("not working yet :(")
+    '''
+    if len(loan_ids)==0:
+      return
+    self.login()
+    logging.info("buying %d new notes"%len(loan_ids))
+    # 1 https://www.lendingclub.com/browse/browse.action 
+    rs = self.br.open("https://www.lendingclub.com/browse/browse.action")
+    rs = self.br.open("https://www.lendingclub.com/browse/getDefaultFilterAj.action?a1=a&rnd=%d" % random.randint(0, 2**31))
+    rs = self.br.open("https://www.lendingclub.com/browse/cashBalanceAj.action?rnd=%d" % random.randint(0, 2**31))
+    rs = self.br.open("https://www.lendingclub.com/data/portfolio?method=getPortfolioSummary&rnd=%d" % random.randint(0, 2**31))
+    rs = self.br.open("https://www.lendingclub.com/browse/browseNotesAj.action?method=getResultsInitial&startindex=0&pagesize=15&r=%d" % random.randint(0, 2**31))
+    open(cachedir+'/buynew1.html', 'wb').write(rs.read())
+    
+    # 2 https://www.lendingclub.com/browse/updateLSRAj.action?loan_id=1463534&investment_amount=25&remove=false
+    for loan_id in loan_ids:
+      rs = self.br.open("https://www.lendingclub.com/browse/updateLSRAj.action?loan_id=%d&investment_amount=%d&remove=false" % (loan_id, ammount_per_note))
+      open(cachedir+'/buynew2.html', 'wb').write(rs.read())
+      if json.load(open(cachedir+'/buynew2.html'))["result"] != "success":
+        logging.error("error while trying to select note")
+        return
+
+    # 3 https://www.lendingclub.com/data/portfolio?method=addToPortfolioNew&rnd=1344314408656
+    rs = self.br.open("https://www.lendingclub.com/data/portfolio?method=addToPortfolioNew&rnd=%d" % random.randint(0, 2**31))
+    open(cachedir+'/buynew3.html', 'wb').write(rs.read())
+
+    # 4 https://www.lendingclub.com/portfolio/viewOrder.action
+    rs = self.br.open("https://www.lendingclub.com/portfolio/viewOrder.action")
+    open(cachedir+'/buynew4.html', 'wb').write(rs.read())
+
+    # 5 https://www.lendingclub.com/portfolio/placeOrder.action
+    rs = self.br.open("https://www.lendingclub.com/portfolio/placeOrder.action")
+    open(cachedir+'/buynew5.html', 'wb').write(rs.read())
+
+    # 6 submit form (notes are now purchased)
+    self.br.select_form(nr=0)
+    rs = self.br.submit()
+    open(cachedir+'/buynew6.html', 'wb').write(rs.read())
+    '''
+
+
   def buy_trading_notes(self, notes):
     if len(notes)==0:
       return
     self.login()
-    logging.info("buying %d notes"%len(notes))
+    logging.info("buying %d trading notes"%len(notes))
     self.br.open("https://www.lendingclub.com/foliofn/tradingInventory.action")
     for si,note in enumerate(notes):
       rs = self.br.open("https://www.lendingclub.com/foliofn/noteAj.action?" +
                         "s=true&si=%d&ps=1&ni=%d&rnd=%d" %
                         (si, note.note_id, random.randint(0,2**31)))
-      open(cachedir+'/buy0.html', 'wb').write(rs.read())
+      open(cachedir+'/buytrading0.html', 'wb').write(rs.read())
 
     rs = self.br.open("https://www.lendingclub.com/foliofn/completeLoanPurchase.action")
-    open(cachedir+'/buy1.html', 'wb').write(rs.read())
+    open(cachedir+'/buytrading1.html', 'wb').write(rs.read())
     self.br.select_form(nr=0)
     rs = self.br.submit()
-    open(cachedir+'/buy2.html', 'wb').write(rs.read())
+    open(cachedir+'/buytrading2.html', 'wb').write(rs.read())
 
   def transfer(self, amount):
     self.login()
