@@ -55,18 +55,17 @@ def load_active_notes(lc, update, window):
 
   logging.debug("active notes = "+str(len(active)))
 
+  errors = set()
   for note in active:
     try:
       if update:
         lc.fetch_details(note)
       note.load_details()
     except:
-      if not update:
-        lc.fetch_details(note)
-        note.load_details()
-      else:
-        logging.exception("failed to load note") 
+      logging.exception("failed to load note") 
+      errors.add(note)
 
+  active = filter(lambda x: x not in errors, active)
 
   pickle.dump(active, open(notes_pickle_file, 'wb'), pickle.HIGHEST_PROTOCOL)
   return active
