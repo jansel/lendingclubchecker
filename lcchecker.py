@@ -65,7 +65,7 @@ def load_active_notes(lc, update, window):
         lc.fetch_details(note)
         note.load_details()
       else:
-        logging.exception("failed to load note "+str(note.id)) 
+        logging.exception("failed to load note") 
 
 
   pickle.dump(active, open(notes_pickle_file, 'wb'), pickle.HIGHEST_PROTOCOL)
@@ -211,6 +211,8 @@ def main(args):
   logging.basicConfig(level=loglevel, stream=logstream)
   if not args.quiet:
     logging.getLogger().addHandler(logging.StreamHandler())
+  buy = list()
+  sell = list()
 
   try:
     if args.weekday and datetime.date.today().weekday() in (5,6):
@@ -239,8 +241,6 @@ def main(args):
 
       if len(buy)>0 and args.buy:
         lc.buy_trading_notes(buy)
-    else:
-      buy = list()
 
     lc.logout()
 
