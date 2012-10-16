@@ -61,6 +61,8 @@ def load_active_notes(lc, update, window):
       if update:
         lc.fetch_details(note)
       note.load_details()
+    except KeyboardInterrupt:
+      raise
     except:
       logging.exception("failed to load note") 
       errors.add(note)
@@ -172,6 +174,8 @@ def get_buy_suggestions(lc, args, o):
         buy.append(note)
         all_loan_ids.add(note.loan_id)
         cash -= note.asking_price
+    except KeyboardInterrupt:
+      raise
     except:
       reasons['error'] += 1
       logging.exception("failed to load trading note")
@@ -253,6 +257,8 @@ def main(args):
           logging.debug("deleting %s, %.0f days old"%(fname,daysold))
           os.unlink(fpath)
 
+  except KeyboardInterrupt:
+    raise
   except:
     logging.exception("unknown error")
   finally:
