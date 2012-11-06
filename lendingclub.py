@@ -118,7 +118,12 @@ class LendingClubBrowser:
     #soup.findAll('table', {'id' : 'purchased-orders'})
     selling = extract_table(soup.findAll('table', {'id' : 'loans-1'})[0])
     sold = extract_table(soup.findAll('table', {'id' : 'sold-orders'})[0])
-    return set(map(lambda x: int(x['Note ID']), selling+sold))
+    def getnoteid(x):
+      try:
+        return int(x['Note ID'])
+      except:
+        return None
+    return set(map(getnoteid, selling+sold))-set([None])
 
   def get_all_loan_ids(self):
     return map(lambda x: x.loan_id, self.notes)
@@ -352,7 +357,11 @@ class Note:
       self.accrual      = float(json['accrued_interest'])
       self.principal    = float(json['outstanding_principal'])
       self.asking_price = float(json['asking_price'])
-      self.rate         = float(json['ytm'])
+      try:
+        self.rate       = float(json['ytm'])
+      except:
+        logging.warning("could not parse rate: " +json['ytm'])
+        self.rate       = 0.0
       self.term         = int(json['loanClass'])
       self.mine         = bool(json['selfNote'])
       self.next_payment = None
