@@ -91,7 +91,10 @@ class LendingClubBrowser:
   def load_notes(self):
     self.notes = list()
     for row in csv.DictReader(open(notes_cache_path, 'rb')):
-      self.notes.append(Note(row))
+      try:
+        self.notes.append(Note(row))
+      except:
+        logging.exception("loading note")
     return self.notes
   
   def load_all_details(self):
