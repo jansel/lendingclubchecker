@@ -229,11 +229,13 @@ def main(args):
     else:
       active = load_active_notes(lc, args.update, args.window)
 
-    sell = filter(lendingclub.Note.want_sell, active)
-    
+    sell = filter(lendingclub.Note.want_sell,
+                  filter(lendingclub.Note.can_sell,
+                         active))
+
     if len(sell)>0 and args.sell:
       lc.sell_notes(sell, args.sellmarkup)
-    
+
     if args.dedup:
       dedup_notes(lc, sell, args)
 

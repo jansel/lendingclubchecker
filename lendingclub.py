@@ -388,7 +388,7 @@ class Note:
     else:
       return 'https://www.lendingclub.com/foliofn/loanPerf.action?loan_id=%d&order_id=%d&note_id=%d' % (
           self.loan_id, self.order_id, self.note_id )
-  
+
   def cache_path(self):
     return '%s/%d.html' % (cachedir, self.note_id)
 
@@ -401,10 +401,13 @@ class Note:
       if self.payment_history[0].status in ('Scheduled', 'Processing...'):
         self.next_payment = self.payment_history[0].due
 
+  def can_sell(self):
+    return self.status not in ('Fully Paid', 'Default')
+
   def sell_reasons(self):
     if self.status == 'Fully Paid':
       return []
-    
+
     class RT:
       failed      = 'failed payment'
       collection  = 'collections log activity'
