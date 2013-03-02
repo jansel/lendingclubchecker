@@ -402,7 +402,7 @@ class Note:
         self.next_payment = self.payment_history[0].due
 
   def can_sell(self):
-    return self.status not in ('Fully Paid', 'Default')
+    return self.status not in ('Fully Paid', 'Default', 'Charged Off')
 
   def sell_reasons(self):
     if self.status == 'Fully Paid':
