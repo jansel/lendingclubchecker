@@ -205,9 +205,17 @@ class LendingClubBrowser:
     self.br.open("https://www.lendingclub.com/foliofn/tradingInventory.action")
     self.br.select_form(nr=0)
     if from_rate is not None:
-      self.br.form['search_from_rate'] = [str(from_rate)]
+      try:
+        self.br.form['search_from_rate'] = [str(from_rate)]
+      except:
+        log.warning("failed to set from rate %s",
+                    str(self.br.form['search_from_rate']))
     if to_rate is not None:
-      self.br.form['search_to_rate'] = [str(to_rate)]
+      try:
+        self.br.form['search_to_rate'] = [str(to_rate)]
+      except:
+        log.warning("failed to set to rate %s",
+                     str(self.br.form['search_to_rate']))
     if status is not None:
       self.br.form['search_status'] = status
     if remaining_payments is not None:
