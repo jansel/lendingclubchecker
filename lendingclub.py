@@ -198,7 +198,7 @@ class LendingClubBrowser:
                               to_rate            = None,
                               status             = ['status_always_current'],
                               page               = 0):
-    pagesize = 60
+    pagesize = 1000
     startindex = pagesize * page
     self.login()
     logging.info("fetching trading inventory page %d"%page)

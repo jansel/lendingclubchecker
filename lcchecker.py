@@ -305,7 +305,7 @@ if __name__ == '__main__':
   parser.add_argument('--buy', action='store_true', help="automatically buy all suggestions")
   parser.add_argument('--buyopt', nargs=2, action='append', help="set option for buying notes")
   parser.add_argument('--buyoptlist', action='store_true', help="print buyopts and exit")
-  parser.add_argument('--pages', default=8, type=int, help='maximum number of trading note pages to examine')
+  parser.add_argument('--pages', default=1, type=int, help='maximum number of trading note pages to examine')
   parser.add_argument('--dedup', action='store_true', help="sell notes such that we hold only one note per loan")
   args = parser.parse_args()
   assert args.sellmarkup>0.4
