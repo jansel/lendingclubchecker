@@ -17,6 +17,10 @@ from pprint import pprint
 from email.mime.text import MIMEText
 from collections import defaultdict
 from settings import smtp_server, smtp_username, smtp_password, login_email
+try:
+  from settings import smtp_port
+except:
+  smtp_port = 587
 
 try:
   from cStringIO import StringIO
@@ -126,13 +130,15 @@ def send_email(me, you, subject, body):
   msg['Subject'] = subject
   msg['From'] = me
   msg['To'] = you
-  s = smtplib.SMTP(smtp_server)
+  s = smtplib.SMTP(smtp_server, smtp_port)
+  s.ehlo()
   s.starttls()
+  s.ehlo()
   if smtp_username:
     s.login(smtp_username, smtp_password)
   s.sendmail(me, [you], msg.as_string())
-  s.quit()
-  
+  s.close()
+
 def trading_inventory_iterator(lc, args, should_continue):
   done = False
   for page in xrange(args.pages):
@@ -281,7 +287,7 @@ def main(args):
       today = str(datetime.date.today())
       subject = "[LendingClubChecker] buy %d sell %d on %s" % (len(buy), len(sell), today)
       send_email(args.emailfrom, args.emailto, subject, body)
-    
+
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='check notes coming due soon for ones that should be sold')
