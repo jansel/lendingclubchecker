@@ -9,7 +9,7 @@ import argparse
 import logging
 import smtplib
 import datetime
-import sys 
+import sys
 import time
 import os
 import re
@@ -49,7 +49,7 @@ def load_active_notes(lc, update, window):
     lc.fetch_notes()
     lc.fetch_trading_summary()
   active = lc.load_notes()
-  
+
   sellingids = lc.get_already_selling_ids()
   active = filter(lambda x: x.note_id not in sellingids, active)
   active = filter(lambda x: x.want_update(window), active)
@@ -68,7 +68,7 @@ def load_active_notes(lc, update, window):
     except KeyboardInterrupt:
       raise
     except:
-      logging.exception("failed to load note") 
+      logging.exception("failed to load note")
       errors.add(note)
 
   active = filter(lambda x: x not in errors, active)

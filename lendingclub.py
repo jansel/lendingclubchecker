@@ -96,11 +96,11 @@ class LendingClubBrowser:
       except:
         logging.exception("loading note")
     return self.notes
-  
+
   def load_all_details(self):
     for note in self.notes:
       note.load_details()
-  
+
   def fetch_notes(self):
     self.login()
     logging.info('fetching notes list')
@@ -257,14 +257,14 @@ class LendingClubBrowser:
       return
     self.login()
     logging.info("buying %d new notes"%len(loan_ids))
-    # 1 https://www.lendingclub.com/browse/browse.action 
+    # 1 https://www.lendingclub.com/browse/browse.action
     rs = self.br.open("https://www.lendingclub.com/browse/browse.action")
     rs = self.br.open("https://www.lendingclub.com/browse/getDefaultFilterAj.action?a1=a&rnd=%d" % random.randint(0, 2**31))
     rs = self.br.open("https://www.lendingclub.com/browse/cashBalanceAj.action?rnd=%d" % random.randint(0, 2**31))
     rs = self.br.open("https://www.lendingclub.com/data/portfolio?method=getPortfolioSummary&rnd=%d" % random.randint(0, 2**31))
     rs = self.br.open("https://www.lendingclub.com/browse/browseNotesAj.action?method=getResultsInitial&startindex=0&pagesize=15&r=%d" % random.randint(0, 2**31))
     open(cachedir+'/buynew1.html', 'wb').write(rs.read())
-    
+
     # 2 https://www.lendingclub.com/browse/updateLSRAj.action?loan_id=1463534&investment_amount=25&remove=false
     for loan_id in loan_ids:
       rs = self.br.open("https://www.lendingclub.com/browse/updateLSRAj.action?loan_id=%d&investment_amount=%d&remove=false" % (loan_id, ammount_per_note))
@@ -319,7 +319,7 @@ class LendingClubBrowser:
     self.br['amount'] = amount
     rsp = self.br.submit()
     open(cachedir+'/transfersummary.html', 'wb').write(rsp.read())
-    
+
 
 class Note:
   def __init__(self, row=None, json=None):
@@ -463,7 +463,7 @@ class Note:
         reasons.append(RT.expected90)
 
     return filter(lambda x: x is not None, reasons)
-  
+
   def want_sell(self):
     return len(self.sell_reasons())>0
 
@@ -584,7 +584,7 @@ class CreditPoint:
 
   def __repr__(self):
     return "CreditPoint(%s, %d, %d)" % (repr(self.date), self.low, self.high)
-  
+
   def __str__(self):
     return "%d-%d" % (self.low, self.high)
 
@@ -592,10 +592,10 @@ class CollectionLogItem:
   def __init__(self, date, msg):
     self.date = date
     self.msg = msg
-  
+
   def __repr__(self):
     return "CollectionLogItem(%s, '%s')" % (repr(self.date), self.msg)
-  
+
   def __str__(self):
     return "%s %s" % (str(self.date), self.msg)
 
@@ -611,7 +611,7 @@ class PaymentHistoryItem:
       return float(self.ammounts[0])
     except:
       return 0.0
-  
+
   def interest(self):
     try:
       return float(self.ammounts[2])
@@ -704,7 +704,7 @@ def extract_payment_history(soup):
   return rv
 
 def build_payment_prob_table(notes):
-  stats = defaultdict(lambda : defaultdict(int)) 
+  stats = defaultdict(lambda : defaultdict(int))
   for note in notes:
     note.paytime_stats(stats)
   def to_percents(m):
