@@ -46,7 +46,7 @@ def payment_prob(a, b):
   based on statistics for on time payments in my account
   '''
   if not usfedhol.contains_holiday(a, b):
-    ppt = {0: [(4, 0.99)],
+    ppt = {0: [(7, 0.99)],
            1: [(6, 0.99)],
            2: [(6, 0.99)],
            3: [(6, 0.99)],
