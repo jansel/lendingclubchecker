@@ -18,6 +18,8 @@ import csv
 import os
 import usfedhol
 import random
+import urllib
+import urlparse
 import math
 from collections import defaultdict
 from pprint import pprint
@@ -129,8 +131,28 @@ class LendingClubBrowser:
         return None
     return set(map(getnoteid, selling+sold))-set([None])
 
+  def get_buying_loan_ids(self):
+    rv = list()
+    try:
+      soup = BeautifulSoup(open(cachedir+'/tradingacc.html', 'rb'))
+      table = soup.findAll('table',
+                           {'id' : 'purchased-orders'})[0]
+      for row in table.findAll('tr'):
+        for a in row.findAll('a'):
+          try:
+            rv.append(int(urlparse.parse_qs(
+                            urlparse.urlparse(
+                              urllib.unquote(a['href'])).query)['loan_id'][0]))
+          except:
+            logging.exception("failed to parse buying loan id")
+    except:
+      logging.exception("failed to load tradingacc.html")
+    return rv
+
   def get_all_loan_ids(self):
-    return map(lambda x: x.loan_id, self.notes)
+    buying = self.get_buying_loan_ids()
+    owned = map(lambda x: x.loan_id, self.notes)
+    return set(owned + buying)
 
   def scrape_all_details(self):
     self.fetch_notes()
