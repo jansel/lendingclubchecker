@@ -1,15 +1,15 @@
 #/usr/bin/python
 """usfedhol.py: Test for United States federal holidays"""
-__version__ = "1.0"
-__author__ = "Jason Ansel (jansel@csail.mit.edu)"
-__copyright__ = "(C) 2012. GNU GPL 3."
+__version__ = '1.0'
+__author__ = 'Jason Ansel (jansel@csail.mit.edu)'
+__copyright__ = '(C) 2012. GNU GPL 3.'
 
 import datetime
-import urllib2
 import re
+import urllib2
 
-date_names = \
-[(datetime.date(1999, 12, 31), 'New Year&rsquo;s Day'),
+date_names = [
+ (datetime.date(1999, 12, 31), 'New Year&rsquo;s Day'),
  (datetime.date(2000, 1, 17), 'Birthday of Martin Luther King, Jr.'),
  (datetime.date(2000, 2, 21), 'Washington&rsquo;s Birthday'),
  (datetime.date(2000, 5, 29), 'Memorial Day'),
@@ -222,33 +222,37 @@ date_names = \
 
 dates = sorted(map(lambda x: x[0], date_names))
 
+
 def extract_row(tr, tag='td'):
   rv = list()
   for td in tr.findAll(tag):
-    s=' '.join(map(lambda x: str(x).strip(), td.findAll(text=True)))
-    s=re.sub('[ \r\n\t]+', ' ', s)
+    s = ' '.join(map(lambda x: str(x).strip(), td.findAll(text=True)))
+    s = re.sub('[ \r\n\t]+', ' ', s)
     rv.append(s)
   return rv
 
+
 def parsedate(s):
   import parsedatetime.parsedatetime as pdt
-  p=pdt.Calendar()
-  if s=='--':
+  p = pdt.Calendar()
+  if s == '--':
     return None
   return datetime.date(*p.parse(s)[0][0:3])
 
-def fetch_holidays(years = range(2000, 2021)):
+
+def fetch_holidays(years=range(2000, 2021)):
   from BeautifulSoup import BeautifulSoup
 
   holidays = list()
   for year in years:
     _year = year
-    soup = BeautifulSoup(urllib2.urlopen("http://www.opm.gov/Operating_Status_Schedules/fedhol/%d.asp"%year))
+    soup = BeautifulSoup(urllib2.urlopen(
+      'http://www.opm.gov/Operating_Status_Schedules/fedhol/%d.asp' % year))
     table = soup.findAll('table')[0]
     rows = map(extract_row, table.findAll('tr'))
 
     for date, name in rows:
-      date = re.sub('[*]+$','', date)
+      date = re.sub('[*]+$', '', date)
       try:
         weekday, date = map(str.strip, date.split(','))
         year = _year
@@ -256,26 +260,26 @@ def fetch_holidays(years = range(2000, 2021)):
         weekday, date, year = map(str.strip, date.split(','))
         year = int(year)
 
-      date += ", %d" % year
+      date += ', %d' % year
       date = parsedate(date)
       holidays.append((date, name))
 
   return holidays
 
+
 def is_holiday(d):
   assert dates[0] <= d and d <= dates[-1]
   return d in dates
 
+
 def contains_holiday(a, b):
   assert dates[0] <= a and a <= dates[-1]
   assert dates[0] <= b and b <= dates[-1]
-  if a<=b:
-    return 0<len(filter(lambda x: a<=x and x<=b, dates))
+  if a <= b:
+    return 0 < len(filter(lambda x: a <= x and x <= b, dates))
   else:
-    return 0<len(filter(lambda x: a>=x and x>=b, dates))
+    return 0 < len(filter(lambda x: a >= x and x >= b, dates))
 
 if __name__ == '__main__':
   from pprint import pprint
   pprint(fetch_holidays())
-
-
