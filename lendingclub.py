@@ -374,12 +374,13 @@ class LendingClubBrowser(object):
       log.info('Not enough cash, skipping buying step %s', cash)
       return []
     else:
-      log.info('Running buy strategy %s', strategy.__class__.__name__)
+      log.info('Running buy strategy %s with %s cash',
+               strategy.__class__.__name__, cash)
     all_loan_ids = set(self.get_all_loan_ids())
     buy = list()
     count_total = 0
     count_fetched = 0
-    self.fetch_trading_inventory(strategy.search_options)
+    self.fetch_trading_inventory(**strategy.search_options)
     for note in self.load_trading_inventory():
       try:
         count_total += 1
@@ -468,7 +469,7 @@ class LendingClubBrowser(object):
         strategy.reasons['error'] += 1
     log.info('will automatically sell %s ids: %s', len(sell),
              str(map(lambda x: x.note_id, sell)))
-    log.info('sell reasons: \n%s',
+    log.info('sell reasons: %s',
              pformat(sorted(strategy.reasons.items(), key=lambda x: -x[1]),
                      indent=2, width=100))
     if len(sell) > 0:
@@ -761,6 +762,11 @@ class BuyTradingStrategy(Strategy):
   def reserve_cash(self):
     """Dont buy notes that would push cash below this value"""
     return 0.0
+
+  def sort_key(self, note):
+    """tuple to sort (prioritize) buying decisions by"""
+    assert isinstance(note, Note)
+    return note.markup(),
 
 
 class SellStrategy(Strategy):

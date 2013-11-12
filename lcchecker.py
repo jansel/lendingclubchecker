@@ -99,7 +99,7 @@ def main(args):
     lc.fetch_notes()
     lc.fetch_trading_summary()
     for action in args.actions:
-      strategy = possible_actions[action]()
+      strategy = possible_actions[action.lower()]()
       if isinstance(strategy, lendingclub.SellStrategy):
         sell += lc.sell_with_strategy(strategy, markup=args.markup,
                                       fraction=args.fraction)
