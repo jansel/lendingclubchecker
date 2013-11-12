@@ -3,3 +3,6 @@ settings.py
 settings.pyc
 *.pyc
 *.swp
+.idea
+run.sh
+custom_strategies.py
