@@ -363,7 +363,6 @@ class LendingClubBrowser(object):
           count += 1
     return payed, count
 
-
   def buy_trading_with_strategy(self, strategy):
     """Examine the trading inventory buy the notes indicated by strategy"""
     assert isinstance(strategy, BuyTradingStrategy)
@@ -381,7 +380,9 @@ class LendingClubBrowser(object):
     count_total = 0
     count_fetched = 0
     self.fetch_trading_inventory(**strategy.search_options)
-    for note in self.load_trading_inventory():
+    notes = self.load_trading_inventory()
+    notes.sort(key=strategy.sort_key)
+    for note in notes:
       try:
         count_total += 1
         if note.loan_id in all_loan_ids:
