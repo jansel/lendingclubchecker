@@ -542,7 +542,7 @@ class Note:
       '11/07/2013', 'Markup/Discount': '-$1.43', 'AskPrice': '0.69', 'LoanId':
       '780797', 'OutstandingPrincipal': '0.69', 'CreditScoreTrend': 'DOWN',
       'DaysSinceLastPayment': '4', 'YTM': '0.01%', 'AccruedInterest': '0.0',
-      ' FICO End Range': '715-719', 'Never Late': 'False', 'NoteId': '5100247'}
+      ' FICO End Range': '715-719', 'NeverLate': 'False', 'NoteId': '5100247'}
       """
 
       assert trading_row is not None
@@ -558,7 +558,9 @@ class Note:
         self.rate = float(trading_row['YTM'].replace('%', ''))
       except:
         self.rate = 0.0
-      self.never_late = (trading_row['Never Late'] == 'True')
+      if trading_row['NeverLate'] not in ('True', 'False'):
+        log.warning('unknown value for NeverLate: %s', trading_row['NeverLate'])
+      self.never_late = (trading_row['NeverLate'] == 'True')
       self.mine = self.note_id in [x.note_id for x in lendingclub.notes]
       self.term = None
       self.next_payment = None
