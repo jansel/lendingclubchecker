@@ -209,17 +209,7 @@ class LendingClubBrowser(object):
       r'(You have made .* Notes available for sale)'))
 
   def fetch_trading_inventory(self, **options_given):
-    defaults = {'askp_min': ['0.00'], 'markup_dis_min': ['-100'],
-                'ytm_max': ['Any'], 'search_from_rate': ['0.04'],
-                'opr_min': ['0.00'],
-                'cb_search_status': ['status_always_current', 'satus_current'],
-                'search_loan_term': ['term_36', 'term_60'],
-                'y': ['16'], 'markup_dis_max': ['1'],
-                'ytm_min': ['10'], 'search_to_rate': ['0.27'],
-                'search_status': ['status_always_current', 'satus_current'],
-                'mode': ['search'], 'fil_search_term': ['term_36', 'term_60'],
-                'askp_max': ['25.00'], 'x': ['64'],
-                'search_remaining_payments': ['59'], 'opr_max': ['Any']}
+    defaults = {'fil_search_term': ['term_36', 'term_60'], 'remp_max': ['60'], 'opr_min': ['0.00'], 'opr_max': ['Any'], 'ona_max': ['35,000.00'], 'ona_min': ['25.00'], 'credit_score_trend': ['UP', 'DOWN', 'FLAT'], 'markup_dis_max': ['15'], 'askp_min': ['0.00'], 'search_from_rate': ['0.04'], 'askp_max': ['Any'], 'y': ['15'], 'ytm_min': ['0'], 'search_to_rate': ['0.27'], 'markup_dis_min': ['-100'], 'ytm_max': ['Any'], 'credit_score_max': ['850'], 'credit_score_min': ['600'], 'search_loan_term': ['term_36', 'term_60'], 'remp_min': ['1'], 'mode': ['search'], 'loan_status': ['loan_status_issued', 'loan_status_current'], 'x': ['29'], 'never_late': ['true']}
     options = dict()
     for name, default in defaults.iteritems():
       options[name] = options_given.pop(name, default)
