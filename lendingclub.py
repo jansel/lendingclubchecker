@@ -8,6 +8,8 @@ import abc
 import collections
 import csv
 import datetime
+import gzip
+import json
 import logging
 import math
 import mechanize
@@ -15,6 +17,7 @@ import os
 import parsedatetime.parsedatetime as pdt
 import random
 import re
+import shutil
 import sys
 import time
 import urllib
@@ -162,30 +165,46 @@ class LendingClubBrowser(object):
       return
     self.login()
     log.info('selling %d notes' % len(notes))
-    self.browser.open('https://www.lendingclub.com/foliofn/loans.action')
-    self.browser.form = make_form(
-      'https://www.lendingclub.com/foliofn/loans.action',
-      'https://www.lendingclub.com/account/loansAj.action',
-      {'namespace': '/foliofn',
-       'method': 'search',
-       'sortBy': 'NoteStatus',
-       'dir': 'asc',
-       'join_criteria': 'all',
-       'status_criteria': 'All',
-       'order_ids_criteria': '0',
-       'r': random.randint(0, 90000000)})
-    rs = self.browser.submit()
-    open(self.cache_dir + '/sell_list.html', 'wb').write(rs.read())
+    rs = self.browser.open(
+      'https://www.lendingclub.com/foliofn/sellNotes.action')
+    open(self.cache_dir + '/sell0.html', 'wb').write(rs.read())
+
+    rs = self.browser.open(
+      'https://www.lendingclub.com/foliofn/sellNotesAj.action' +
+      '?sortBy=nextPayment&dir=desc&startindex=0&pagesize=10000' +
+      '&namespace=/foliofn&r={0}&join_criteria=all' +
+      '&status_criteria=All&order_ids_criteria=0'.format(random.random()))
+    # server insists on sending us gziped data for this, extract it...
+    open(self.cache_dir + '/sell1.gz', 'wb').write(rs.read())
+    try:
+      gz = gzip.GzipFile(self.cache_dir + '/sell1.gz', 'rb')
+      data = gz.read()
+      gz.close()
+      rs.set_data(data)
+      self.browser.set_response(rs)
+      open(self.cache_dir + '/sell1.json', 'wb').write(rs.read())
+    except:
+      log.warning('error extracting notes list', exc_info=True)
+      shutil.copy(self.cache_dir + '/sell1.gz', self.cache_dir + '/sell1.json')
+
+    rs = self.browser.open(
+      'https://www.lendingclub.com/foliofn/getSelectedNoteCountAj.action'
+      '?rnd=%d' % random.randint(0, 999999999))
+    open(self.cache_dir + '/sell2.html', 'wb').write(rs.read())
+
+    # These cookies may be needed by server:
+    # loans.isFromServer=; loans.sortBy=nextPayment; loans.sortDir=desc;
+    # loans.pageSize=10000; loans.sIndex=0;')
 
     for note in notes:
       rs = self.browser.open(
-        'https://www.lendingclub.com/account/updateLoanCheckBoxAj.action?' +
-        'note_id=%d&remove=false&namespace=/foliofn' % note.note_id)
-      open(self.cache_dir + '/sell0.html', 'wb').write(rs.read())
+        'https://www.lendingclub.com/foliofn/updateLoanCheckBoxAj.action' +
+        '?note_id={0}&remove=false&namespace=/foliofn'.format(note.note_id))
+      open(self.cache_dir + '/sell3.html', 'wb').write(rs.read())
 
     rs = self.browser.open(
       'https://www.lendingclub.com/foliofn/selectLoansForSale.action')
-    open(self.cache_dir + '/sell1.html', 'wb').write(rs.read())
+    open(self.cache_dir + '/sell4.html', 'wb').write(rs.read())
 
     self.browser.select_form(name='submitLoansForSale')
     for i in xrange(len(notes)):
@@ -203,13 +222,25 @@ class LendingClubBrowser(object):
       except Exception, e:
         log.exception('fewer selling notes than expected %d' % i)
     rs = self.browser.submit()
-    open(self.cache_dir + '/sell2.html', 'wb').write(rs.read())
+    open(self.cache_dir + '/sell5.html', 'wb').write(rs.read())
     log.info(extract_msg_from_html(
-      self.cache_dir + '/sell2.html',
-      r'(You have made .* Notes available for sale)'))
+      self.cache_dir + '/sell5.html',
+      r'(You have made .* available for sale)'))
 
   def fetch_trading_inventory(self, **options_given):
-    defaults = {'fil_search_term': ['term_36', 'term_60'], 'remp_max': ['60'], 'opr_min': ['0.00'], 'opr_max': ['Any'], 'ona_max': ['35,000.00'], 'ona_min': ['25.00'], 'credit_score_trend': ['UP', 'DOWN', 'FLAT'], 'markup_dis_max': ['15'], 'askp_min': ['0.00'], 'search_from_rate': ['0.04'], 'askp_max': ['Any'], 'y': ['15'], 'ytm_min': ['0'], 'search_to_rate': ['0.27'], 'markup_dis_min': ['-100'], 'ytm_max': ['Any'], 'credit_score_max': ['850'], 'credit_score_min': ['600'], 'search_loan_term': ['term_36', 'term_60'], 'remp_min': ['1'], 'mode': ['search'], 'loan_status': ['loan_status_issued', 'loan_status_current'], 'x': ['29'], 'never_late': ['true']}
+    defaults = {'fil_search_term': ['term_36', 'term_60'], 'remp_max': ['60'],
+                'opr_min': ['0.00'], 'opr_max': ['Any'],
+                'ona_max': ['35,000.00'], 'ona_min': ['25.00'],
+                'credit_score_trend': ['UP', 'DOWN', 'FLAT'],
+                'markup_dis_max': ['15'], 'askp_min': ['0.00'],
+                'search_from_rate': ['0.04'], 'askp_max': ['Any'], 'y': ['15'],
+                'ytm_min': ['0'], 'search_to_rate': ['0.27'],
+                'markup_dis_min': ['-100'], 'ytm_max': ['Any'],
+                'credit_score_max': ['850'], 'credit_score_min': ['600'],
+                'search_loan_term': ['term_36', 'term_60'], 'remp_min': ['1'],
+                'mode': ['search'],
+                'loan_status': ['loan_status_issued', 'loan_status_current'],
+                'x': ['29'], 'never_late': ['true']}
     options = dict()
     for name, default in defaults.iteritems():
       options[name] = options_given.pop(name, default)
@@ -548,9 +579,9 @@ class Note:
         self.rate = float(trading_row['YTM'].replace('%', ''))
       except:
         self.rate = 0.0
-      if trading_row['NeverLate'] not in ('True', 'False'):
+      if trading_row['NeverLate'].lower() not in ('true', 'false'):
         log.warning('unknown value for NeverLate: %s', trading_row['NeverLate'])
-      self.never_late = (trading_row['NeverLate'] == 'True')
+      self.never_late = (trading_row['NeverLate'].lower() == 'true')
       self.mine = self.note_id in [x.note_id for x in lendingclub.notes]
       self.term = None
       self.next_payment = None
@@ -597,9 +628,13 @@ class Note:
         self.next_payment = self.payment_history[0].due
 
   def can_sell(self):
-    return (self.status not in ('Fully Paid', 'Default', 'Charged Off')
-            and (self.status != 'Current' or
-                 self.next_payment > datetime.date.today()))
+    return (
+      self.status not in ('Fully Paid', 'Default', 'Charged Off') and
+      self.next_payment is not None and
+      # This date window is expanded by 1 to allow for timezone offset
+      (self.next_payment > datetime.date.today() + datetime.timedelta(days=1)
+       or
+       self.next_payment < datetime.date.today() - datetime.timedelta(days=5)))
 
   def markup(self):
     if self.par_value() == 0:
