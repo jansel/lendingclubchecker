@@ -1,8 +1,8 @@
 #!/usr/bin/python
 """lendingclub.py: API to access a lendingclub.com account from python"""
-__version__ = '2.0'
+__version__ = '2.1'
 __author__ = 'Jason Ansel (jasonansel@jasonansel.com)'
-__copyright__ = '(C) 2012. GNU GPL 3.'
+__copyright__ = '(C) 2012-2014. GNU GPL 3.'
 
 import abc
 import collections
@@ -349,7 +349,7 @@ class LendingClubBrowser(object):
       'https://www.lendingclub.com/foliofn/addToCartAj.action?rnd=%d' %
       random.randint(0, 2 ** 31))
     open(self.cache_dir + '/buytrading1.json', 'wb').write(rs.read())
-    log.info('trading card: %s',
+    log.info('trading cart: %s',
              open(self.cache_dir + '/buytrading1.json').read())
 
     rs = self.browser.open('https://www.lendingclub.com/foliofn/cart.action')

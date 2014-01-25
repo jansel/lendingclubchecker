@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """lcchecker.py: Create a list of sell recommendations based on recent notes"""
-__version__ = '2.0'
-__author__ = 'Jason Ansel (jansel@csail.mit.edu)'
+__version__ = '2.1'
+__author__ = 'Jason Ansel (jasonansel@jasonansel.com)'
 __copyright__ = '(C) 2012. GNU GPL 3.'
 
 import argparse
