@@ -484,6 +484,8 @@ class LendingClubBrowser(object):
         time.sleep(1)
         self.fetch_details(note)
         note.load_details()
+        if not note.can_sell():
+          continue
         if not strategy.initial_filter(note):
           continue
         if not strategy.details_filter(note):
@@ -633,12 +635,17 @@ class Note:
         self.next_payment = self.payment_history[0].due
 
   def can_sell(self):
-    return (
-      self.status not in ('Fully Paid', 'Default', 'Charged Off') and
-      self.next_payment is not None and
-      (self.next_payment > datetime.date.today()
-       or
-       self.next_payment < datetime.date.today() - datetime.timedelta(days=7)))
+    if self.status in ('Fully Paid', 'Default', 'Charged Off'):
+      return False
+    if self.next_payment is None:
+      return False
+    if (self.next_payment > datetime.date.today() or
+       self.next_payment < datetime.date.today() - datetime.timedelta(days=7)):
+      return False
+    if (self.collection_log and
+            any(item.is_bankruptcy() for item in self.collection_log)):
+      return False
+    return True
 
   def markup(self):
     if self.par_value() == 0:
@@ -722,6 +729,9 @@ class CollectionLogItem(object):
 
   def __str__(self):
     return '%s %s' % (str(self.date), self.msg)
+
+  def is_bankruptcy(self):
+    return re.search(r'Bankruptcy', self.msg, re.IGNORECASE) is not None
 
 
 class PaymentHistoryItem(object):
