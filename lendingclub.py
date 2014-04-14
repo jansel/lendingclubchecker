@@ -70,6 +70,13 @@ class LendingClubBrowser(object):
       self.browser.open('https://www.lendingclub.com/account/logout.action')
       self.logged_in = False
 
+  def fetch_notes(self):
+    self.login()
+    log.info('fetching notes list (csv)')
+    with open(self.cache_dir + '/notes.csv', 'wb') as fd:
+      fd.write(self.browser.open(
+        'https://www.lendingclub.com/account/notesRawData.action').read())
+
   def load_notes(self):
     self.notes = list()
     for row in csv.DictReader(open(self.cache_dir + '/notes.csv', 'rb')):
@@ -82,13 +89,6 @@ class LendingClubBrowser(object):
   def load_all_details(self):
     for note in self.notes:
       note.load_details()
-
-  def fetch_notes(self):
-    self.login()
-    log.info('fetching notes list')
-    with open(self.cache_dir + '/notes.csv', 'wb') as fd:
-      fd.write(self.browser.open(
-        'https://www.lendingclub.com/account/notesRawData.action').read())
 
   def fetch_details(self, note):
     self.login()
@@ -160,6 +160,42 @@ class LendingClubBrowser(object):
       log.exception('failed to get available cash')
       return -1
 
+  def compute_can_sell_ids(self):
+    """
+    Example of note data returned
+    {"currPayStatus": 11, "portfolioName": "New", "portfolioId": 491211,
+     "status": "Issued", "principalRemaining": "25.00",
+     "purpose": "Other", "noteId": 44777646, "loanLength": 60,
+     "accrual": "0.00", "loanAmt": "$20,000", "rate": "G3 : 25.89%",
+     "amountLent": 25, "credit_score_trend": 1, "alreadySelected": False,
+     "noteType": 1, "loanType": "Personal", "nextPayment": "May 14, 2014",
+     "paymentReceived": "0.00", "isInBankruptcy": False,
+     "orderId": 21100971, "loanId": 14588413}
+    """
+    try:
+      with open(self.cache_dir + '/sell1.json', 'rb') as fd:
+        data = json.load(fd)
+      loans = data['searchresult']['loans']
+
+      can_sell = []
+      for note in loans:
+        if note['isInBankruptcy']:
+          continue
+        if note['status'] in ('Default', 'Charged Off', 'Fully Paid'):
+          continue
+        if note['currPayStatus'] == 13:
+          continue
+        can_sell.append(note['noteId'])
+
+      log.info('can_sell data for %s loans, %s sellable', len(loans),
+               len(can_sell))
+      return set(can_sell)
+    except KeyboardInterrupt:
+      raise
+    except Exception:
+      log.exception('unhandled error while finding notes that can be sold')
+    return set()
+
   def sell_notes(self, notes, markup):
     if len(notes) == 0:
       return
@@ -169,11 +205,11 @@ class LendingClubBrowser(object):
       'https://www.lendingclub.com/foliofn/sellNotes.action')
     open(self.cache_dir + '/sell0.html', 'wb').write(rs.read())
 
-    rs = self.browser.open(
+    rs = self.browser.open((
       'https://www.lendingclub.com/foliofn/sellNotesAj.action' +
       '?sortBy=nextPayment&dir=desc&startindex=0&pagesize=10000' +
       '&namespace=/foliofn&r={0}&join_criteria=all' +
-      '&status_criteria=All&order_ids_criteria=0'.format(random.random()))
+      '&status_criteria=All&order_ids_criteria=0').format(random.random()))
     # server insists on sending us gziped data for this, extract it...
     open(self.cache_dir + '/sell1.gz', 'wb').write(rs.read())
     try:
@@ -192,15 +228,27 @@ class LendingClubBrowser(object):
       '?rnd=%d' % random.randint(0, 999999999))
     open(self.cache_dir + '/sell2.html', 'wb').write(rs.read())
 
+    can_sell = self.compute_can_sell_ids()  # reads sell1.json
+
     # These cookies may be needed by server:
     # loans.isFromServer=; loans.sortBy=nextPayment; loans.sortDir=desc;
     # loans.pageSize=10000; loans.sIndex=0;')
 
+    notes_for_sale = []
     for note in notes:
+      if note.note_id not in can_sell:
+        log.warning('Trying to sell a note that cant be sold %s', note.note_id)
+        continue
       rs = self.browser.open(
         'https://www.lendingclub.com/foliofn/updateLoanCheckBoxAj.action' +
         '?note_id={0}&remove=false&namespace=/foliofn'.format(note.note_id))
       open(self.cache_dir + '/sell3.html', 'wb').write(rs.read())
+      notes_for_sale.append(note)
+
+    notes = notes_for_sale
+    if not notes:
+      log.info('nothing for sale')
+      return
 
     rs = self.browser.open(
       'https://www.lendingclub.com/foliofn/selectLoansForSale.action')
@@ -639,13 +687,11 @@ class Note:
       return False
     if self.next_payment is None:
       return False
-    if (self.next_payment > datetime.date.today() or
-       self.next_payment < datetime.date.today() - datetime.timedelta(days=7)):
-      return False
     if (self.collection_log and
             any(item.is_bankruptcy() for item in self.collection_log)):
       return False
-    return True
+    return (self.next_payment > datetime.date.today() or
+            self.next_payment < datetime.date.today() - datetime.timedelta(days=7))
 
   def markup(self):
     if self.par_value() == 0:

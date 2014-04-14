@@ -28,7 +28,7 @@ class SellImperfect(SellStrategy):
       late = [x for x in late
               if 'Recurring payment date changed' not in x.status]
       if late:
-        if filter(lambda x: x.status not in ('Completed - in grace period'),
+        if filter(lambda x: x.status not in ('Completed - in grace period',),
                   late):
           self.reasons['late payment'] += 1
         else:
