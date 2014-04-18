@@ -14,7 +14,6 @@ import logging
 import math
 import mechanize
 import os
-import parsedatetime.parsedatetime as pdt
 import random
 import re
 import shutil
@@ -34,8 +33,14 @@ from settings import login_password
 
 try:
   from mechanize import ParseFile as ClientFormParseFile
-except:
+except ImportError:
   from ClientForm import ParseFile as ClientFormParseFile
+
+try:
+    import parsedatetime.parsedatetime as pdt
+except ImportError:
+    import parsedatetime as pdt
+
 
 log = logging.getLogger(__name__)
 
