@@ -606,7 +606,7 @@ class Note:
       self.status = row['Status']
       self.accrual = float(row['Accrual'].replace('$', ''))
       self.principal = float(row['PrincipalRemaining'].replace('$', ''))
-      self.rate = float(row['InterestRate'])
+      self.rate = float(row['InterestRate'].strip('%'))
       self.term = int(row['Term'])
       self.mine = True
       self.last_payment = None
