@@ -244,9 +244,10 @@ class LendingClubBrowser(object):
       if note.note_id not in can_sell:
         log.warning('Trying to sell a note that cant be sold %s', note.note_id)
         continue
-      rs = self.browser.open(
-        'https://www.lendingclub.com/foliofn/updateLoanCheckBoxAj.action' +
-        '?note_id={0}&remove=false&namespace=/foliofn'.format(note.note_id))
+      url = ('https://www.lendingclub.com/foliofn/updateLoanCheckBoxAj.action?'
+             'json=[{{%22noteId%22:{},%22remove%22:false}}]&random={}')
+      rs = self.browser.open(url.format(note.note_id,
+                                        random.randint(0, 999999999)))
       open(self.cache_dir + '/sell3.html', 'wb').write(rs.read())
       notes_for_sale.append(note)
 
@@ -260,20 +261,25 @@ class LendingClubBrowser(object):
     open(self.cache_dir + '/sell4.html', 'wb').write(rs.read())
 
     self.browser.select_form(name='submitLoansForSale')
+    encoded = []
     for i in xrange(len(notes)):
       try:
         for note in notes:
-          if note.loan_id == int(
-              self.browser.form.find_control('loan_id', nr=i).value) \
-            and note.order_id == int(
-                  self.browser.form.find_control('order_id', nr=i).value):
+          loan_id = int(self.browser.form.find_control('loan_id', nr=i).value)
+          order_id = int(self.browser.form.find_control('order_id', nr=i).value)
+          if note.loan_id == loan_id and note.order_id == order_id:
+            asking_price = '%.2f' % (note.par_value() * markup)
             self.browser.form.find_control('asking_price',
-                                           nr=i).value = '%.2f' % (
-              note.par_value() * markup)
-        assert float(self.browser.form.find_control(
-          'asking_price', nr=i).value) > 0.0
-      except Exception, e:
+                                           nr=i).value = asking_price
+            encoded.append({'noteId': str(note.note_id),
+                            'loanId': str(note.loan_id),
+                            'orderId': str(note.order_id),
+                            'askingPrice': str(asking_price)})
+            assert float(asking_price) > 0.0
+      except Exception:
         log.exception('fewer selling notes than expected %d' % i)
+    self.browser.form.find_control('json').readonly = False
+    self.browser.form.find_control('json').value = json.dumps(encoded)
     rs = self.browser.submit()
     open(self.cache_dir + '/sell5.html', 'wb').write(rs.read())
     log.info(extract_msg_from_html(
@@ -308,10 +314,6 @@ class LendingClubBrowser(object):
     open(self.cache_dir + '/inventory0.html', 'wb').write(rs.read())
     rs = self.browser.open(options_url)
     open(self.cache_dir + '/inventory1.html', 'wb').write(rs.read())
-    #rs = self.br.open('https://www.lendingclub.com/foliofn/browseNotesAj.action'
-    #                  '?sortBy=markup_discount&dir=asc&startindex=0'
-    #                  '&newrdnnum=46907133&pagesize=1000')
-    #open(cachedir + '/inventory2.json', 'wb').write(rs.read())
     with open(os.path.join(self.cache_dir, 'tradinginventory.csv'), 'wb') as fd:
       fd.write(self.browser.open(
         'https://www.lendingclub.com/foliofn/notesRawData.action').read())
@@ -338,51 +340,10 @@ class LendingClubBrowser(object):
 
   def load_new_inventory(self):
     rows = list()
-    for row in csv.DictReader(
-        open(self.cache_dir + '/browseNotesRawDataV2.csv', 'rb')):
+    for row in csv.DictReader(open(self.cache_dir + '/browseNotesRawDataV2.csv',
+                                   'rb')):
       rows.append(row)
     return rows
-
-  def buy_new_notes(self, loan_ids, amount_per_note):
-    raise Exception('not working yet :(')
-    '''
-    if len(loan_ids)==0:
-      return
-    self.login()
-    logging.info("buying %d new notes"%len(loan_ids))
-    # 1 https://www.lendingclub.com/browse/browse.action
-    rs = self.br.open("https://www.lendingclub.com/browse/browse.action")
-    rs = self.br.open("https://www.lendingclub.com/browse/getDefaultFilterAj.action?a1=a&rnd=%d" % random.randint(0, 2**31))
-    rs = self.br.open("https://www.lendingclub.com/browse/cashBalanceAj.action?rnd=%d" % random.randint(0, 2**31))
-    rs = self.br.open("https://www.lendingclub.com/data/portfolio?method=getPortfolioSummary&rnd=%d" % random.randint(0, 2**31))
-    rs = self.br.open("https://www.lendingclub.com/browse/browseNotesAj.action?method=getResultsInitial&startindex=0&pagesize=15&r=%d" % random.randint(0, 2**31))
-    open(cachedir+'/buynew1.html', 'wb').write(rs.read())
-
-    # 2 https://www.lendingclub.com/browse/updateLSRAj.action?loan_id=1463534&investment_amount=25&remove=false
-    for loan_id in loan_ids:
-      rs = self.br.open("https://www.lendingclub.com/browse/updateLSRAj.action?loan_id=%d&investment_amount=%d&remove=false" % (loan_id, amount_per_note))
-      open(cachedir+'/buynew2.html', 'wb').write(rs.read())
-      if json.load(open(cachedir+'/buynew2.html'))["result"] != "success":
-        logging.error("error while trying to select note")
-        return
-
-    # 3 https://www.lendingclub.com/data/portfolio?method=addToPortfolioNew&rnd=1344314408656
-    rs = self.br.open("https://www.lendingclub.com/data/portfolio?method=addToPortfolioNew&rnd=%d" % random.randint(0, 2**31))
-    open(cachedir+'/buynew3.html', 'wb').write(rs.read())
-
-    # 4 https://www.lendingclub.com/portfolio/viewOrder.action
-    rs = self.br.open("https://www.lendingclub.com/portfolio/viewOrder.action")
-    open(cachedir+'/buynew4.html', 'wb').write(rs.read())
-
-    # 5 https://www.lendingclub.com/portfolio/placeOrder.action
-    rs = self.br.open("https://www.lendingclub.com/portfolio/placeOrder.action")
-    open(cachedir+'/buynew5.html', 'wb').write(rs.read())
-
-    # 6 submit form (notes are now purchased)
-    self.br.select_form(nr=0)
-    rs = self.br.submit()
-    open(cachedir+'/buynew6.html', 'wb').write(rs.read())
-    '''
 
   def buy_trading_notes(self, notes):
     if len(notes) == 0:
@@ -473,7 +434,7 @@ class LendingClubBrowser(object):
         if not strategy.initial_filter(note):
           continue
         if note.last_updated() < (datetime.datetime.now() -
-                                    datetime.timedelta(days=14)):
+                                  datetime.timedelta(days=14)):
           time.sleep(1)
           self.fetch_details(note)
           count_fetched += 1
@@ -607,6 +568,8 @@ class Note:
       self.accrual = float(row['Accrual'].replace('$', ''))
       self.principal = float(row['PrincipalRemaining'].replace('$', ''))
       self.rate = float(row['InterestRate'].strip('%'))
+      if self.rate > 1.0:
+        self.rate /= 100.0
       self.term = int(row['Term'])
       self.mine = True
       self.last_payment = None
@@ -715,8 +678,8 @@ class Note:
     return 0
 
   def debug(self, o=sys.stderr, histn=5):
-    print >> o, 'note', self.note_id, self.portfolio, self.status, self.par_value(
-    )
+    print >> o, 'note', self.note_id, self.portfolio, self.status,
+    print >> o, self.par_value()
     if self.asking_price:
       print >> o, 'asking price', self.asking_price, '(%.2f%%)' % (
         self.asking_price / self.par_value() * 100.0), 'rate', self.rate
