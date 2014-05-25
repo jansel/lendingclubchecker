@@ -99,14 +99,16 @@ def main(args):
     lc.fetch_notes()
     lc.fetch_trading_summary()
     for action in args.actions:
+      if action.lower() == 'dedup':
+        lc.sell_duplicate_notes(args.markup)
+        continue
+
       strategy = possible_actions[action.lower()]()
       if isinstance(strategy, lendingclub.SellStrategy):
         sell += lc.sell_with_strategy(strategy, markup=args.markup,
                                       fraction=args.fraction)
       elif isinstance(strategy, lendingclub.BuyTradingStrategy):
         buy += lc.buy_trading_with_strategy(custom_strategies.BuyPerfect())
-      elif action.lower() == 'dedup':
-        lc.sell_duplicate_notes(args.markup)
       else:
         assert False
     lc.logout()
