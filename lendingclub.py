@@ -80,7 +80,7 @@ class LendingClubBrowser(object):
     log.info('fetching notes list (csv)')
     with open(self.cache_dir + '/notes.csv', 'wb') as fd:
       fd.write(self.browser.open(
-        'https://www.lendingclub.com/account/notesRawData.action').read())
+        'https://www.lendingclub.com/account/notesRawDataExtended.action').read())
 
   def load_notes(self):
     self.notes = list()
