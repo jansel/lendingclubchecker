@@ -1,11 +1,11 @@
 
 #for lendingclub.com
-login_email     = "jon@example.com"
-login_password  = "12345"
+login_email     = 'jon@example.com'
+login_password  = '12345'
 
 #for sending report emails
-smtp_server   = "localhost"
-smtp_username = ""
-smtp_password = ""
+smtp_server   = 'localhost'
+smtp_username = ''
+smtp_password = ''
 smtp_port     = 587
 

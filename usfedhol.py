@@ -1,8 +1,8 @@
 #/usr/bin/python
 """usfedhol.py: Test for United States federal holidays"""
-__version__ = '1.0'
-__author__ = 'Jason Ansel (jansel@csail.mit.edu)'
-__copyright__ = '(C) 2012. GNU GPL 3.'
+__version__ = '3.0'
+__author__ = 'Jason Ansel (jansel@jansel.net)'
+__copyright__ = '(C) 2012-2014. GNU GPL 3.'
 
 import datetime
 import re

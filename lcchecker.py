@@ -1,8 +1,8 @@
 #!/usr/bin/python
 """lcchecker.py: Create a list of sell recommendations based on recent notes"""
-__version__ = '2.1'
-__author__ = 'Jason Ansel (jasonansel@jasonansel.com)'
-__copyright__ = '(C) 2012. GNU GPL 3.'
+__version__ = '3.0'
+__author__ = 'Jason Ansel (jansel@jansel.net)'
+__copyright__ = '(C) 2012-2014. GNU GPL 3.'
 
 import argparse
 import datetime
@@ -30,6 +30,7 @@ try:
   import custom_strategies
 except ImportError:
   custom_strategies = object()
+
 
 def send_email(me, you, subject, body):
   logging.info("sending email '%s' to %s" % (subject, you))
@@ -99,16 +100,16 @@ def main(args):
     lc.fetch_notes()
     lc.fetch_trading_summary()
     for action in args.actions:
-      if action.lower() == 'dedup':
-        lc.sell_duplicate_notes(args.markup)
-        continue
-
-      strategy = possible_actions[action.lower()]()
+      strategy = possible_actions[action.lower()]
+      if strategy is not None:
+        strategy = strategy()
       if isinstance(strategy, lendingclub.SellStrategy):
         sell += lc.sell_with_strategy(strategy, markup=args.markup,
                                       fraction=args.fraction)
       elif isinstance(strategy, lendingclub.BuyTradingStrategy):
-        buy += lc.buy_trading_with_strategy(custom_strategies.BuyPerfect())
+        buy += lc.buy_trading_with_strategy(strategy)
+      elif action.lower() == 'dedup':
+        lc.sell_duplicate_notes(args.markup)
       else:
         assert False
     lc.logout()
@@ -122,8 +123,9 @@ def main(args):
     print log
     if log and args.email:
       today = str(datetime.date.today())
-      subject = '[LendingClubChecker] buy %d sell %d on %s' % (
-        len(buy), len(sell), today)
+      subject = '[LendingClubChecker] buy %d sell %d on %s' % (len(buy),
+                                                               len(sell),
+                                                               today)
       send_email(args.emailfrom, args.emailto, subject, log)
 
 

@@ -6,3 +6,4 @@ settings.pyc
 .idea
 run.sh
 custom_strategies.py
+trading_history

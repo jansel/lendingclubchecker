@@ -1,7 +1,7 @@
-#!/usr/bin/python
+# !/usr/bin/python
 """lendingclub.py: API to access a lendingclub.com account from python"""
-__version__ = '2.1'
-__author__ = 'Jason Ansel (jasonansel@jasonansel.com)'
+__version__ = '3.0'
+__author__ = 'Jason Ansel (jansel@jansel.net)'
 __copyright__ = '(C) 2012-2014. GNU GPL 3.'
 
 import abc
@@ -37,10 +37,9 @@ except ImportError:
   from ClientForm import ParseFile as ClientFormParseFile
 
 try:
-    import parsedatetime.parsedatetime as pdt
+  import parsedatetime.parsedatetime as pdt
 except ImportError:
-    import parsedatetime as pdt
-
+  import parsedatetime as pdt
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +79,8 @@ class LendingClubBrowser(object):
     log.info('fetching notes list (csv)')
     with open(self.cache_dir + '/notes.csv', 'wb') as fd:
       fd.write(self.browser.open(
-        'https://www.lendingclub.com/account/notesRawDataExtended.action').read())
+          'https://www.lendingclub.com/account/notesRawDataExtended.action')
+               .read())
 
   def load_notes(self):
     self.notes = list()
@@ -99,14 +99,14 @@ class LendingClubBrowser(object):
     self.login()
     log.debug('fetching note details ' + str(note.note_id))
     open(note.cache_path(), 'wb').write(
-      self.browser.open(note.details_uri()).read())
+        self.browser.open(note.details_uri()).read())
 
   def fetch_trading_summary(self):
     self.login()
     log.info('fetching trading summary')
     open(self.cache_dir + '/tradingacc.html', 'wb').write(
-      self.browser.open(
-        'https://www.lendingclub.com/foliofn/tradingAccount.action').read())
+        self.browser.open(
+            'https://www.lendingclub.com/foliofn/tradingAccount.action').read())
 
   def get_already_selling_ids(self):
     soup = BeautifulSoup(open(self.cache_dir + '/tradingacc.html', 'rb'))
@@ -120,7 +120,7 @@ class LendingClubBrowser(object):
       except:
         return None
 
-    return set(map(getnoteid, selling + sold)) - set([None])
+    return set(map(getnoteid, selling + sold)) - {None}
 
   def get_buying_loan_ids(self):
     rv = list()
@@ -131,8 +131,7 @@ class LendingClubBrowser(object):
       for row in table.findAll('tr'):
         for a in row.findAll('a'):
           try:
-            rv.append(int(urlparse.parse_qs(
-              urlparse.urlparse(
+            rv.append(int(urlparse.parse_qs(urlparse.urlparse(
                 urllib.unquote(a['href'])).query)['loan_id'][0]))
           except:
             log.exception('failed to parse buying loan id')
@@ -201,20 +200,23 @@ class LendingClubBrowser(object):
       log.exception('unhandled error while finding notes that can be sold')
     return set()
 
-  def sell_notes(self, notes, markup):
+  def sell_notes(self, notes, markup, asking_price_fn=None):
+    if asking_price_fn is None:
+      asking_price_fn = lambda x_note, x_markup: x_note.par_value() * x_markup
     if len(notes) == 0:
       return
     self.login()
     log.info('selling %d notes' % len(notes))
     rs = self.browser.open(
-      'https://www.lendingclub.com/foliofn/sellNotes.action')
+        'https://www.lendingclub.com/foliofn/sellNotes.action')
     open(self.cache_dir + '/sell0.html', 'wb').write(rs.read())
 
-    rs = self.browser.open((
-      'https://www.lendingclub.com/foliofn/sellNotesAj.action' +
-      '?sortBy=nextPayment&dir=desc&startindex=0&pagesize=10000' +
-      '&namespace=/foliofn&r={0}&join_criteria=all' +
-      '&status_criteria=All&order_ids_criteria=0').format(random.random()))
+    aj_url = ('https://www.lendingclub.com/foliofn/sellNotesAj.action'
+              '?sortBy=nextPayment&dir=desc&startindex=0&pagesize'
+              '=10000&namespace=/foliofn&r={0}&join_criteria=all'
+              '&status_criteria=All&order_ids_criteria=0').format(
+                  random.random())
+    rs = self.browser.open(aj_url)
     # server insists on sending us gziped data for this, extract it...
     open(self.cache_dir + '/sell1.gz', 'wb').write(rs.read())
     try:
@@ -228,9 +230,9 @@ class LendingClubBrowser(object):
       log.warning('error extracting notes list', exc_info=True)
       shutil.copy(self.cache_dir + '/sell1.gz', self.cache_dir + '/sell1.json')
 
-    rs = self.browser.open(
-      'https://www.lendingclub.com/foliofn/getSelectedNoteCountAj.action'
-      '?rnd=%d' % random.randint(0, 999999999))
+    rs = self.browser.open('https://www.lendingclub.com/foliofn/'
+                           'getSelectedNoteCountAj.action'
+                           '?rnd=%d' % random.randint(0, 999999999))
     open(self.cache_dir + '/sell2.html', 'wb').write(rs.read())
 
     can_sell = self.compute_can_sell_ids()  # reads sell1.json
@@ -240,7 +242,7 @@ class LendingClubBrowser(object):
     # loans.pageSize=10000; loans.sIndex=0;')
 
     notes_for_sale = []
-    for note in notes:
+    for i, note in enumerate(notes):
       if note.note_id not in can_sell:
         log.warning('Trying to sell a note that cant be sold %s', note.note_id)
         continue
@@ -250,6 +252,8 @@ class LendingClubBrowser(object):
                                         random.randint(0, 999999999)))
       open(self.cache_dir + '/sell3.html', 'wb').write(rs.read())
       notes_for_sale.append(note)
+      if i > 5:
+        time.sleep(1)  # avoid 503 server errors
 
     notes = notes_for_sale
     if not notes:
@@ -257,7 +261,7 @@ class LendingClubBrowser(object):
       return
 
     rs = self.browser.open(
-      'https://www.lendingclub.com/foliofn/selectLoansForSale.action')
+        'https://www.lendingclub.com/foliofn/selectLoansForSale.action')
     open(self.cache_dir + '/sell4.html', 'wb').write(rs.read())
 
     self.browser.select_form(name='submitLoansForSale')
@@ -268,7 +272,8 @@ class LendingClubBrowser(object):
           loan_id = int(self.browser.form.find_control('loan_id', nr=i).value)
           order_id = int(self.browser.form.find_control('order_id', nr=i).value)
           if note.loan_id == loan_id and note.order_id == order_id:
-            asking_price = '%.2f' % (note.par_value() * markup)
+            asking_price = asking_price_fn(note, markup)
+            asking_price = '%.2f' % asking_price
             self.browser.form.find_control('asking_price',
                                            nr=i).value = asking_price
             encoded.append({'noteId': str(note.note_id),
@@ -282,41 +287,40 @@ class LendingClubBrowser(object):
     self.browser.form.find_control('json').value = json.dumps(encoded)
     rs = self.browser.submit()
     open(self.cache_dir + '/sell5.html', 'wb').write(rs.read())
-    log.info(extract_msg_from_html(
-      self.cache_dir + '/sell5.html',
-      r'(You have made .* available for sale)'))
+    log.info(extract_msg_from_html(self.cache_dir + '/sell5.html',
+                                   r'(You have made .* available for sale)'))
 
   def fetch_trading_inventory(self, **options_given):
     # defaults are generated by loading the page, clicking search, and copying
     # the query string from the url
     defaults = urlparse.parse_qs(
-      'mode=search&search_from_rate=0.04&search_to_rate=0.27&'
-      'loan_status=loan_status_issued&loan_status=loan_status_current&'
-      'never_late=true&fil_search_term=term_36&fil_search_term=term_60&'
-      'search_loan_term=term_36&search_loan_term=term_60&remp_min=1&'
-      'remp_max=60&askp_min=0.00&askp_max=Any&markup_dis_min=-100&'
-      'markup_dis_max=15&opr_min=0.00&opr_max=Any&ona_min=25&ona_max=Any&'
-      'ytm_min=0&ytm_max=Any&credit_score_min=600&credit_score_max=850&'
-      'credit_score_trend=UP&credit_score_trend=DOWN&credit_score_trend=FLAT&'
-      'exclude_invested_loans=false')
+        'mode=search&search_from_rate=0.04&search_to_rate=0.27&'
+        'fil_search_term=term_36&fil_search_term=term_60&'
+        'search_loan_term=term_36&search_loan_term=term_60&opr_min=0.00&'
+        'opr_max=Any&loan_status=loan_status_issued&loan_status'
+        '=loan_status_current&never_late=true&remp_min=1&remp_max=60&'
+        'askp_min=0.00&askp_max=Any&credit_score_min=600&credit_score_max=850&'
+        'ytm_min=0&ytm_max=Any&credit_score_trend=UP&credit_score_trend=DOWN&'
+        'credit_score_trend=FLAT&markup_dis_min=-100&markup_dis_max=15&'
+        'ona_min=25&ona_max=Any&exclude_invested_loans=false')
     options = dict()
     for name, default in defaults.iteritems():
       options[name] = options_given.pop(name, default)
     if options_given:
       log.error('unknown options: %s', str(options_given))
-    options_url = (
-      'https://www.lendingclub.com/foliofn/tradingInventory.action?{0}'
-      .format(urllib.urlencode(sorted(options.items()), True)))
+    options_url = (('https://www.lendingclub.com/foliofn/'
+                    'tradingInventory.action?{0}')
+                   .format(urllib.urlencode(sorted(options.items()), True)))
     self.login()
     log.info('fetching: %s', options_url)
     rs = self.browser.open(
-      'https://www.lendingclub.com/foliofn/tradingInventory.action')
+        'https://www.lendingclub.com/foliofn/tradingInventory.action')
     open(self.cache_dir + '/inventory0.html', 'wb').write(rs.read())
     rs = self.browser.open(options_url)
     open(self.cache_dir + '/inventory1.html', 'wb').write(rs.read())
     with open(os.path.join(self.cache_dir, 'tradinginventory.csv'), 'wb') as fd:
       fd.write(self.browser.open(
-        'https://www.lendingclub.com/foliofn/notesRawData.action').read())
+          'https://www.lendingclub.com/foliofn/notesRawData.action').read())
     log.info('fetching trading notes list csv done')
 
   def load_trading_inventory(self):
@@ -335,7 +339,7 @@ class LendingClubBrowser(object):
     self.login()
     log.info('fetching new inventory')
     rs = self.browser.open(
-      'https://www.lendingclub.com/browse/browseNotesRawDataV2.action')
+        'https://www.lendingclub.com/browse/browseNotesRawDataV2.action')
     open(self.cache_dir + '/browseNotesRawDataV2.csv', 'wb').write(rs.read())
 
   def load_new_inventory(self):
@@ -351,17 +355,19 @@ class LendingClubBrowser(object):
     self.login()
     log.info('buying %d trading notes' % len(notes))
     self.browser.open(
-      'https://www.lendingclub.com/foliofn/tradingInventory.action')
+        'https://www.lendingclub.com/foliofn/tradingInventory.action')
     for si, note in enumerate(notes):
       rs = self.browser.open(
-        'https://www.lendingclub.com/foliofn/noteAj.action?' +
-        's=true&si=%d&ps=1&ni=%d&rnd=%d' %
-        (si, note.note_id, random.randint(0, 2 ** 31)))
+          'https://www.lendingclub.com/foliofn/noteAj.action?' +
+          's=true&si=%d&ps=1&ni=%d&rnd=%d' %
+          (si, note.note_id, random.randint(0, 2 ** 31)))
       open(self.cache_dir + '/buytrading0.json', 'wb').write(rs.read())
+      if si > 5:
+        time.sleep(1)  # Avoid 503 server errors
 
     rs = self.browser.open(
-      'https://www.lendingclub.com/foliofn/addToCartAj.action?rnd=%d' %
-      random.randint(0, 2 ** 31))
+        'https://www.lendingclub.com/foliofn/addToCartAj.action?rnd=%d' %
+        random.randint(0, 2 ** 31))
     open(self.cache_dir + '/buytrading1.json', 'wb').write(rs.read())
     log.info('trading cart: %s',
              open(self.cache_dir + '/buytrading1.json').read())
@@ -372,8 +378,8 @@ class LendingClubBrowser(object):
     rs = self.browser.submit()
     open(self.cache_dir + '/buytrading3.html', 'wb').write(rs.read())
     log.info(extract_msg_from_html(
-      self.cache_dir + '/buytrading3.html',
-      r'(We have received your order to buy [^.]*)'))
+        self.cache_dir + '/buytrading3.html',
+        r'(We have received your order to buy [^.][.]?[^.]*)'))
 
   def withdraw(self, amount):
     """
@@ -409,7 +415,7 @@ class LendingClubBrowser(object):
     if not self.notes:
       self.load_notes()
     cash = self.available_cash()
-    if cash + strategy.reserve_cash < 25:
+    if cash - strategy.reserve_cash < 25:
       log.info('Not enough cash, skipping buying step %s', cash)
       return []
     else:
@@ -435,7 +441,7 @@ class LendingClubBrowser(object):
           continue
         if note.last_updated() < (datetime.datetime.now() -
                                   datetime.timedelta(days=14)):
-          time.sleep(1)
+          time.sleep(1.5)
           self.fetch_details(note)
           count_fetched += 1
         note.load_details()
@@ -515,8 +521,11 @@ class LendingClubBrowser(object):
     log.info('sell reasons: %s',
              pformat(sorted(strategy.reasons.items(), key=lambda x: -x[1]),
                      indent=2, width=100))
-    if len(sell) > 0:
-      self.sell_notes(sell, markup)
+    for note in sell:
+      # Selling all notes at once often causes server errors, instead do 1
+      # at a time
+      self.sell_notes([note], markup, strategy.sale_price)
+      time.sleep(1)
 
     with open(os.path.join(self.cache_dir, 'sell_log.txt'), 'w') as o:
       for note in sell:
@@ -532,8 +541,8 @@ class LendingClubBrowser(object):
   def sell_duplicate_notes(self, markup):
     already_selling_ids = set(self.get_already_selling_ids())
     active = self.load_notes()
-    active = list(
-      filter(lambda x: x.note_id not in already_selling_ids, active))
+    active = list(filter(lambda x: x.note_id not in already_selling_ids,
+                         active))
     active.sort(key=lambda x: x.loan_id)
     dups = list()
     last_id = None
@@ -545,9 +554,10 @@ class LendingClubBrowser(object):
     self.sell_notes(dups, markup)
 
 
-class Note:
+class Note(object):
   def __init__(self, row=None, trading_row=None, lendingclub=None):
     self.lendingclub = lendingclub
+    self.trading_row_raw = trading_row
     if row is not None:
       """
       row = {'Accrual': '$0.00', 'AmountLent': '25.0', 'InterestRate':
@@ -568,9 +578,10 @@ class Note:
       self.accrual = float(row['Accrual'].replace('$', ''))
       self.principal = float(row['PrincipalRemaining'].replace('$', ''))
       self.rate = float(row['InterestRate'].strip('%'))
-      if self.rate > 1.0:
-        self.rate /= 100.0
       self.term = int(row['Term'])
+      self.remaining_payments = int(self.term -
+                                    float(row['PaymentsReceivedToDate']))
+      self.trend = row['Trend']
       self.mine = True
       self.last_payment = None
       self.asking_price = None
@@ -580,6 +591,8 @@ class Note:
         self.next_payment = None
       self.days_since_payment = None
       self.never_late = None
+      if self.rate < 1:
+        log.warning('unexpected rate %s', self.rate)
     else:
       """
       {'OrderId': '12760991', 'Status': 'IN_LISTING', 'Date/Time Listed':
@@ -588,11 +601,11 @@ class Note:
       'DaysSinceLastPayment': '4', 'YTM': '0.01%', 'AccruedInterest': '0.0',
       ' FICO End Range': '715-719', 'NeverLate': 'False', 'NoteId': '5100247'}
       """
-
       assert trading_row is not None
       self.note_id = int(trading_row['NoteId'])
       self.loan_id = int(trading_row['LoanId'])
       self.order_id = int(trading_row['OrderId'])
+      self.trend = trading_row['CreditScoreTrend']
       self.portfolio = None
       self.status = trading_row['Status']
       self.accrual = float(trading_row['AccruedInterest'])
@@ -608,14 +621,28 @@ class Note:
       self.mine = self.note_id in [x.note_id for x in lendingclub.notes]
       self.term = None
       self.next_payment = None
+      self.remaining_payments = int(trading_row['Remaining Payments'])
       try:
         self.days_since_payment = int(trading_row['DaysSinceLastPayment'])
       except:
         self.days_since_payment = None
-
     self.credit_history = None
     self.collection_log = None
     self.payment_history = None
+
+  def to_trading_row_format(self):
+    assert self.credit_history[0].date <= self.credit_history[-1].date
+    return {'Status': self.status,
+            'FICO End Range': str(self.credit_history[-1]),
+            'Markup/Discount': '0.0',
+            'AskPrice': '%.2f' % self.par_value(),
+            'CreditScoreTrend': self.trend,
+            'DaysSinceLastPayment': ('null' if self.days_since_payment is None
+                                     else str(self.days_since_payment)),
+            'Principal + Interest': round(self.par_value(), 2),
+            'Interest Rate': str(self.rate),
+            'NeverLate': 'false' if self.get_late_payments() else 'true',
+            'Remaining Payments': '%.0f' % self.remaining_payments}
 
   def par_value(self):
     return self.principal + self.accrual
@@ -624,19 +651,19 @@ class Note:
     if self.mine:
       return ('https://www.lendingclub.com/account/loanPerf.action'
               '?loan_id=%d&order_id=%d&note_id=%d' % (
-                self.loan_id, self.order_id, self.note_id))
+                  self.loan_id, self.order_id, self.note_id))
     else:
       return ('https://www.lendingclub.com/foliofn/loanPerf.action'
               '?loan_id=%d&order_id=%d&note_id=%d' % (
-                self.loan_id, self.order_id, self.note_id))
+                  self.loan_id, self.order_id, self.note_id))
 
   def cache_path(self):
     return '%s/%d.html' % (self.lendingclub.cache_dir, self.note_id)
 
   def last_updated(self):
     try:
-      return datetime.datetime.fromtimestamp(
-        os.path.getmtime(self.cache_path()))
+      return datetime.datetime.fromtimestamp(os.path.getmtime(
+          self.cache_path()))
     except OSError:
       return datetime.datetime(2000, 1, 1)
 
@@ -649,6 +676,11 @@ class Note:
       if ('Scheduled' in self.payment_history[0].status or
               'Processing' in self.payment_history[0].status):
         self.next_payment = self.payment_history[0].due
+    if self.days_since_payment is None and self.payment_history:
+      if (len(self.payment_history) > 1 and
+              'Completed' in self.payment_history[1].status):
+        self.days_since_payment = (datetime.date.today() -
+                                   self.payment_history[1].complete).days
 
   def can_sell(self):
     if self.status in ('Fully Paid', 'Default', 'Charged Off'):
@@ -659,7 +691,8 @@ class Note:
             any(item.is_bankruptcy() for item in self.collection_log)):
       return False
     return (self.next_payment > datetime.date.today() or
-            self.next_payment < datetime.date.today() - datetime.timedelta(days=7))
+            self.next_payment < datetime.date.today() - datetime.timedelta(
+                days=7))
 
   def markup(self):
     if self.par_value() == 0:
@@ -682,14 +715,14 @@ class Note:
     print >> o, self.par_value()
     if self.asking_price:
       print >> o, 'asking price', self.asking_price, '(%.2f%%)' % (
-        self.asking_price / self.par_value() * 100.0), 'rate', self.rate
+          self.asking_price / self.par_value() * 100.0), 'rate', self.rate
       print >> o, 'days since payment', self.days_since_payment
     if self.credit_history:
       print >> o, 'credit', str(
-        self.credit_history[-1]), 'changed by at least', self.creditdeltamin()
+          self.credit_history[-1]), 'changed by at least', self.creditdeltamin()
     if self.payment_history:
       print >> o, 'payment history (last %d of %d records)' % (
-        len(self.payment_history[0:histn]), len(self.payment_history))
+          len(self.payment_history[0:histn]), len(self.payment_history))
       print >> o, '> ' + '\n> '.join(map(str, self.payment_history[0:histn]))
     if self.collection_log:
       print >> o, 'collection log (%d events)' % len(self.collection_log)
@@ -700,7 +733,7 @@ class Note:
       return self.payment_history[0].amount()
     except:
       guess = self.principal * (self.rate / 12.0) / (
-        1 - math.e ** (-self.term * math.log(1 + self.rate / 12.0)))
+          1 - math.e ** (-self.term * math.log(1 + self.rate / 12.0)))
       log.debug('unknown payment amount, guessing %.2f for note %d' %
                 (guess, self.note_id))
       return guess
@@ -718,6 +751,16 @@ class Note:
     for p in filter(PaymentHistoryItem.is_complete, self.payment_history):
       if usfedhol.contains_holiday(p.due, p.complete):
         stats[p.due.weekday()][(p.complete - p.due).days] += 1
+
+  def get_late_payments(self):
+    if not self.payment_history:
+      return None
+    late = filter(lambda y: y.status not in ('Completed - on time',
+                                             'Scheduled', 'Processing...'),
+                  self.payment_history)
+    late = [x for x in late
+            if 'Recurring payment date changed' not in x.status]
+    return late
 
 
 class CreditPoint(object):
@@ -769,8 +812,7 @@ class PaymentHistoryItem(object):
 
   def __repr__(self):
     return "PaymentHistoryItem(%s, %s, '%s', %s)" % (
-      repr(self.due), repr(self.complete), self.status, repr(self.amounts)
-    )
+        repr(self.due), repr(self.complete), self.status, repr(self.amounts))
 
   def __str__(self):
     if self.complete:
@@ -786,6 +828,7 @@ class Strategy(object):
   __metaclass__ = abc.ABCMeta
 
   def __init__(self):
+    self.reasons = None
     self.reset_reasons()
 
   def reset_reasons(self):
@@ -808,7 +851,10 @@ class Strategy(object):
     pass
 
 
+# noinspection PyAbstractClass
 class BuyTradingStrategy(Strategy):
+  __metaclass__ = abc.ABCMeta
+
   @property
   def search_options(self):
     """Options to pass to search filters"""
@@ -825,8 +871,12 @@ class BuyTradingStrategy(Strategy):
     return note.markup(),
 
 
+# noinspection PyAbstractClass
 class SellStrategy(Strategy):
-  pass
+  __metaclass__ = abc.ABCMeta
+
+  def sale_price(self, note, markup):
+    return note.par_value() * markup
 
 
 def parsedate(s):
@@ -879,7 +929,7 @@ def make_form(src, dest, values):
   print >> req, '<form method="POST" action="%s">' % dest
   for k, v in values.items():
     print >> req, '<input type="text" name="%s"   value="%s">' % (
-      str(k), str(v))
+        str(k), str(v))
   print >> req, '</form>'
   return ClientFormParseFile(StringIO(req.getvalue()), src)[0]
 
@@ -902,7 +952,7 @@ def extract_payment_history(soup):
       row = extract_row(tr)
       if len(row) > 3:
         rv.append(PaymentHistoryItem(parsedate(row[0]), parsedate(
-          row[1]), row[-1], map(lambda x: re.sub('^[$]', '', x), row[2:-1])))
+            row[1]), row[-1], map(lambda x: re.sub('^[$]', '', x), row[2:-1])))
   return rv
 
 
@@ -936,7 +986,8 @@ def build_payment_prob_table(notes):
 def payment_prob(a, b):
   """
   ppt[due_day] = [(delay, prob), ...]
-  due_day is day of week (0=monday), delay is in days after due date, prob is from 0 to 1.0
+  due_day is day of week (0=monday), delay is in days after due date, prob is
+  from 0 to 1.0
   based on statistics for on time payments in my account
   """
   if not usfedhol.contains_holiday(a, b):
