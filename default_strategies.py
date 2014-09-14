@@ -1,7 +1,38 @@
+__version__ = '3.0'
+__author__ = 'Jason Ansel (jansel@jansel.net)'
+__copyright__ = '(C) 2012-2014. GNU GPL 3.'
+
 from lendingclub import SellStrategy
+import logging
+try:
+  import marketmodel
+except ImportError:
+  marketmodel = None
+
+log = logging.getLogger(__name__)
 
 
 class SellImperfect(SellStrategy):
+  def sale_price(self, note, markup=None):
+    if marketmodel is None or marketmodel.MarketModel.instance() is None:
+      return note.par_value() * markup
+    model = marketmodel.MarketModel.instance()
+    trading_row = note.to_trading_row_format()
+    price = model.predict_sale_price_trading_row(trading_row,
+                                                 confidence=0.4,
+                                                 min_markup=0.98,
+                                                 max_markup=1.25)
+    try:
+      log.info('Sale: %.2f markup=%.2f %s neverlate=%s rate=%s, '
+               'credit_delta=%s sell_proba=%.2f',
+               price, price / note.par_value(), trading_row['Status'],
+               trading_row['NeverLate'], trading_row['Interest Rate'],
+               note.creditdeltamin(),
+               model.sell_proba_trading_row(trading_row, price=price))
+    except Exception:
+      log.exception('Eeek!')
+    return price
+
   def initial_filter(self, note):
     return note.can_sell()
 
@@ -21,19 +52,14 @@ class SellImperfect(SellStrategy):
         self.reasons['collections log'] += 1
       return True
 
-    if note.payment_history:
-      late = filter(lambda x: x.status not in ('Completed - on time',
-                                               'Scheduled', 'Processing...'),
-                    note.payment_history)
-      late = [x for x in late
-              if 'Recurring payment date changed' not in x.status]
-      if late:
-        if filter(lambda x: x.status not in ('Completed - in grace period',),
-                  late):
-          self.reasons['late payment'] += 1
-        else:
-          self.reasons['payment in grace period'] += 1
-        return True
+    late = note.get_late_payments()
+    if late:
+      if filter(lambda x: x.status not in ('Completed - in grace period',),
+                late):
+        self.reasons['late payment'] += 1
+      else:
+        self.reasons['payment in grace period'] += 1
+      return True
 
     if note.credit_history:
       if note.creditdeltamin() < -120:
