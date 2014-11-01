@@ -756,7 +756,9 @@ class Note(object):
     if not self.payment_history:
       return None
     late = filter(lambda y: y.status not in ('Completed - on time',
-                                             'Scheduled', 'Processing...'),
+                                             'Completed',
+                                             'Scheduled',
+                                             'Processing...'),
                   self.payment_history)
     late = [x for x in late
             if 'Recurring payment date changed' not in x.status]
