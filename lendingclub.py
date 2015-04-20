@@ -954,7 +954,7 @@ def extract_payment_history(soup):
       row = extract_row(tr)
       if len(row) > 3:
         rv.append(PaymentHistoryItem(parsedate(row[0]), parsedate(
-            row[1]), row[-1], map(lambda x: re.sub('^[$]', '', x), row[2:-1])))
+            row[1]), row[-2], map(lambda x: re.sub('^[$]', '', x), row[2:-2])))
   return rv
 
 
