@@ -60,7 +60,11 @@ class LendingClubBrowser(object):
   def login(self):
     if not self.logged_in:
       log.info('logging in as ' + login_email)
-      self.browser.open('https://www.lendingclub.com/account/summary.action')
+      try:
+        self.browser.open('https://www.lendingclub.com/account/summary.action')
+      except:
+        # Retry exactly once
+        self.browser.open('https://www.lendingclub.com/account/summary.action')
       self.browser.select_form(nr=0)
       self.browser['login_email'] = login_email
       self.browser['login_password'] = login_password
@@ -143,6 +147,14 @@ class LendingClubBrowser(object):
     buying = self.get_buying_loan_ids()
     owned = map(lambda x: x.loan_id, self.notes)
     return set(owned + buying)
+
+  def get_loan_id_counts(self):
+    buying = self.get_buying_loan_ids()
+    owned = map(lambda x: x.loan_id, self.notes)
+    counts = collections.Counter()
+    for loan_id in owned + buying:
+      counts[loan_id] += 1
+    return counts
 
   def scrape_all_details(self):
     self.fetch_notes()
@@ -230,6 +242,7 @@ class LendingClubBrowser(object):
       log.warning('error extracting notes list', exc_info=True)
       shutil.copy(self.cache_dir + '/sell1.gz', self.cache_dir + '/sell1.json')
 
+    time.sleep(1.5)  # avoid 503 server errors
     rs = self.browser.open('https://www.lendingclub.com/foliofn/'
                            'getSelectedNoteCountAj.action'
                            '?rnd=%d' % random.randint(0, 999999999))
@@ -248,18 +261,18 @@ class LendingClubBrowser(object):
         continue
       url = ('https://www.lendingclub.com/foliofn/updateLoanCheckBoxAj.action?'
              'json=[{{%22noteId%22:{},%22remove%22:false}}]&random={}')
+      time.sleep(1.5)  # avoid 503 server errors
       rs = self.browser.open(url.format(note.note_id,
                                         random.randint(0, 999999999)))
       open(self.cache_dir + '/sell3.html', 'wb').write(rs.read())
       notes_for_sale.append(note)
-      if i > 5:
-        time.sleep(1)  # avoid 503 server errors
 
     notes = notes_for_sale
     if not notes:
       log.info('nothing for sale')
       return
 
+    time.sleep(1.5)  # avoid 503 server errors
     rs = self.browser.open(
         'https://www.lendingclub.com/foliofn/selectLoansForSale.action')
     open(self.cache_dir + '/sell4.html', 'wb').write(rs.read())
@@ -354,17 +367,18 @@ class LendingClubBrowser(object):
       return
     self.login()
     log.info('buying %d trading notes' % len(notes))
+    time.sleep(1.5)  # Avoid 503 server errors
     self.browser.open(
         'https://www.lendingclub.com/foliofn/tradingInventory.action')
     for si, note in enumerate(notes):
+      time.sleep(1.5)  # Avoid 503 server errors
       rs = self.browser.open(
           'https://www.lendingclub.com/foliofn/noteAj.action?' +
           's=true&si=%d&ps=1&ni=%d&rnd=%d' %
           (si, note.note_id, random.randint(0, 2 ** 31)))
       open(self.cache_dir + '/buytrading0.json', 'wb').write(rs.read())
-      if si > 5:
-        time.sleep(1)  # Avoid 503 server errors
 
+    time.sleep(1.5)  # Avoid 503 server errors
     rs = self.browser.open(
         'https://www.lendingclub.com/foliofn/addToCartAj.action?rnd=%d' %
         random.randint(0, 2 ** 31))
@@ -372,9 +386,12 @@ class LendingClubBrowser(object):
     log.info('trading cart: %s',
              open(self.cache_dir + '/buytrading1.json').read())
 
+    time.sleep(1.5)  # Avoid 503 server errors
     rs = self.browser.open('https://www.lendingclub.com/foliofn/cart.action')
     open(self.cache_dir + '/buytrading2.html', 'wb').write(rs.read())
     self.browser.select_form(nr=0)
+
+    time.sleep(1.5)  # Avoid 503 server errors
     rs = self.browser.submit()
     open(self.cache_dir + '/buytrading3.html', 'wb').write(rs.read())
     log.info(extract_msg_from_html(
@@ -409,7 +426,7 @@ class LendingClubBrowser(object):
           count += 1
     return payed, count
 
-  def buy_trading_with_strategy(self, strategy):
+  def buy_trading_with_strategy(self, strategy, max_notes_per_loan=1):
     """Examine the trading inventory buy the notes indicated by strategy"""
     assert isinstance(strategy, BuyTradingStrategy)
     if not self.notes:
@@ -421,17 +438,22 @@ class LendingClubBrowser(object):
     else:
       log.info('Running buy strategy %s with %s cash',
                strategy.__class__.__name__, cash)
-    all_loan_ids = set(self.get_all_loan_ids())
+    loan_id_counts = self.get_loan_id_counts()
     buy = list()
     count_total = 0
     count_fetched = 0
-    self.fetch_trading_inventory(**strategy.search_options)
-    notes = self.load_trading_inventory()
+    try:
+        self.fetch_trading_inventory(**strategy.search_options)
+        notes = self.load_trading_inventory()
+    except:
+        log.error('retrying inventory load', exc_info=True)
+        self.fetch_trading_inventory(**strategy.search_options)
+        notes = self.load_trading_inventory()
     notes.sort(key=strategy.sort_key)
     for note in notes:
       try:
         count_total += 1
-        if note.loan_id in all_loan_ids:
+        if loan_id_counts[note.loan_id] >= max_notes_per_loan:
           strategy.reasons['already invested in loan'] += 1
           continue
         if note.asking_price + strategy.reserve_cash > cash:
@@ -449,7 +471,7 @@ class LendingClubBrowser(object):
           continue
         if strategy.details_filter(note):
           buy.append(note)
-          all_loan_ids.add(note.loan_id)
+          loan_id_counts[note.loan_id] += 1
           cash -= note.asking_price
       except KeyboardInterrupt:
         raise
